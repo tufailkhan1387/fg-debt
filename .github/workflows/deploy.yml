@@ -1,0 +1,91 @@
+name: Deploy to firmsure.co.uk
+
+# Every push to main builds the web app and the API, uploads both to the Webuzo server over SSH,
+# installs API packages, runs database migrations and restarts the API.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  # Paths on the server, relative to the SSH user's home (/home/firm).
+  WEB_ROOT: public_html
+  API_DIR: apps/fg-backend
+  # Public address of the API, baked into the web app at build time.
+  VITE_API_URL: https://firmsure.co.uk/backend
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            fg-debt/package-lock.json
+            backend/backend/package-lock.json
+
+      - name: Build web app
+        working-directory: fg-debt
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+          test -f dist/index.html
+          rm -f dist/dist.zip
+
+      - name: Build API
+        working-directory: backend/backend
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - name: Package API
+        run: |
+          mkdir -p api-bundle/deploy
+          cp -r backend/backend/dist backend/backend/sql backend/backend/package.json backend/backend/package-lock.json api-bundle/
+          cp deploy/server-deploy.sh deploy/ecosystem.config.cjs api-bundle/deploy/
+
+      - name: Set up SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "$SSH_PORT" "$SSH_HOST" >> ~/.ssh/known_hosts
+          cat >> ~/.ssh/config <<EOF
+          Host server
+            HostName $SSH_HOST
+            Port $SSH_PORT
+            User ${{ secrets.SSH_USER }}
+            IdentityFile ~/.ssh/deploy_key
+          EOF
+
+      - name: Upload API
+        run: |
+          ssh server "mkdir -p ~/$API_DIR"
+          # .env, uploads, backups and node_modules on the server are kept.
+          rsync -az --delete \
+            --exclude '.env' --exclude 'uploads/' --exclude 'backups/' --exclude 'node_modules/' \
+            api-bundle/ "server:$API_DIR/"
+
+      - name: Install, migrate and restart API
+        run: ssh server "bash ~/$API_DIR/deploy/server-deploy.sh"
+
+      - name: Upload web app
+        run: |
+          # The backend/ folder (API proxy) and server-managed folders are kept.
+          rsync -az --delete \
+            --exclude 'backend/' --exclude '.well-known/' --exclude 'cgi-bin/' \
+            fg-debt/dist/ "server:$WEB_ROOT/"
+          ssh server "mkdir -p ~/$WEB_ROOT/backend"
+          rsync -az deploy/backend.htaccess "server:$WEB_ROOT/backend/.htaccess"

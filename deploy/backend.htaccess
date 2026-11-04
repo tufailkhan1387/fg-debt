@@ -1,0 +1,5 @@
+# Uploaded to public_html/backend/.htaccess by the deploy workflow.
+# Forwards https://firmsure.co.uk/backend/... to the API on this server (port 4000),
+# e.g. /backend/api/health -> http://127.0.0.1:4000/api/health
+RewriteEngine On
+RewriteRule ^(.*)$ http://127.0.0.1:4000/$1 [P,L]

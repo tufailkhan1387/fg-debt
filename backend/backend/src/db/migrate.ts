@@ -28,7 +28,7 @@ export async function migrate() {
   console.log("Database schema is up to date.");
 }
 
-const isDirectRun = process.argv[1] && path.resolve(process.argv[1]).includes("migrate.ts");
+const isDirectRun = process.argv[1] && /migrate\.(ts|js)$/.test(path.resolve(process.argv[1]));
 
 if (isDirectRun) {
   migrate()
