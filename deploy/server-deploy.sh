@@ -39,7 +39,7 @@ $PM2 save
 # Bring the API back after a server reboot (added once).
 CRON_LINE="@reboot cd $APP_DIR && PATH=$(dirname "$(command -v node)"):\$PATH $PM2 resurrect"
 if ! crontab -l 2>/dev/null | grep -qF "pm2@6 resurrect"; then
-  (crontab -l 2>/dev/null; echo "$CRON_LINE") | crontab -
+  { crontab -l 2>/dev/null || true; echo "$CRON_LINE"; } | crontab -
 fi
 
 PORT="$(grep -E '^PORT=' .env | tail -1 | cut -d= -f2 | tr -d '[:space:]"' || true)"

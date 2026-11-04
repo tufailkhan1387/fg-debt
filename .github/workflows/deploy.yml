@@ -75,7 +75,7 @@ jobs:
           ssh server "mkdir -p ~/$API_DIR"
           # .env, uploads, backups and node_modules on the server are kept.
           rsync -az --delete \
-            --exclude '.env' --exclude 'uploads/' --exclude 'backups/' --exclude 'node_modules/' \
+            --exclude '/.env' --exclude '/uploads/' --exclude '/backups/' --exclude '/node_modules/' \
             api-bundle/ "server:$API_DIR/"
 
       - name: Install, migrate and restart API
@@ -85,7 +85,7 @@ jobs:
         run: |
           # The backend/ folder (API proxy) and server-managed folders are kept.
           rsync -az --delete \
-            --exclude 'backend/' --exclude '.well-known/' --exclude 'cgi-bin/' \
+            --exclude '/backend/' --exclude '/.well-known/' --exclude '/cgi-bin/' \
             fg-debt/dist/ "server:$WEB_ROOT/"
           ssh server "mkdir -p ~/$WEB_ROOT/backend"
           rsync -az deploy/backend.htaccess "server:$WEB_ROOT/backend/.htaccess"
