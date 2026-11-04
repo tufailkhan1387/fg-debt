@@ -1,0 +1,33 @@
+# Dependencies and builds
+node_modules/
+dist/
+dist-ssr/
+.output/
+.vinxi/
+.tanstack/
+.nitro/
+.wrangler/
+*.local
+*.log
+
+# Secrets
+.env
+.env.*
+!.env.example
+.dev.vars
+
+# Backend runtime data
+backend/backend/uploads/
+backend/backend/backups/
+backend/backend/backend.zip
+
+# Client documents (not code)
+*.pdf
+*.xlsm
+
+# Local tooling / editor
+.claude/
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store

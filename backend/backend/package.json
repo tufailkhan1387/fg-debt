@@ -1,0 +1,52 @@
+{
+  "name": "fg-debt-advice-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "build": "tsc -p .",
+    "start:prod": "node dist/index.js",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "db:seed": "tsx src/db/seed.ts",
+    "db:restore": "tsx src/db/restore-backup.ts",
+    "create-principal": "tsx src/db/create-principal.ts",
+    "db:seed:matters": "tsx src/db/seed-matters-run.ts",
+    "db:clear:matters": "tsx src/db/clear-matters.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.131.0",
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "docx": "9.8.1",
+    "dotenv": "^16.6.1",
+    "exceljs": "4.4.0",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.0.1",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "jszip": "3.10.1",
+    "mammoth": "1.12.3",
+    "multer": "^2.2.0",
+    "nodemailer": "10.0.14",
+    "openai": "7.32.0",
+    "pdfmake": "0.2.23",
+    "pg": "^8.16.3",
+    "unpdf": "1.8.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/multer": "^2.2.0",
+    "@types/node": "^24.2.1",
+    "@types/nodemailer": "8.0.2",
+    "@types/pdfmake": "0.2.13",
+    "@types/pg": "^8.15.5",
+    "tsx": "^4.20.3",
+    "typescript": "^5.9.2"
+  }
+}

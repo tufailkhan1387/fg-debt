@@ -1,0 +1,885 @@
+{
+  "MAT-2026-4417": {
+    "clientPhone": "+44 7700 900312",
+    "clientAddress": "48 Harrow Lane, Manchester, M4 2BQ",
+    "niNumber": "QQ 12 34 56 C",
+    "dob": "14/05/1988",
+    "employmentStatus": "Employed (Part-time)",
+    "employerName": "Manchester Logistics Ltd",
+    "monthlyNetIncome": 1980,
+    "benefitsIncome": 565,
+    "totalIncome": 2545,
+    "monthlyExpenses": 2400,
+    "vulnerabilityNotes": "Long-term medical condition impacting full-time work capability.",
+    "priorityDebtTotal": 2220,
+    "nonPriorityDebtTotal": 16200,
+    "aiReasoning": [
+      "Total qualifying debt (£18,420) is well under the £50,000 UK DRO threshold.",
+      "Monthly disposable income (£145) is below the £75/month surplus cap when considering upcoming health expenditure.",
+      "Total assets value (£850) is significantly below the £2,000 threshold.",
+      "Client has lived in England & Wales for over 3 years."
+    ],
+    "alternativeSolutions": [
+      {
+        "name": "Debt Management Plan (DMP)",
+        "pros": "Informal, avoids insolvency public register",
+        "cons": "Will take 10+ years to clear £18.4k debt at £145/month"
+      },
+      {
+        "name": "Token Payment Plan",
+        "pros": "Buys time with creditors",
+        "cons": "Does not write off principal debt"
+      }
+    ],
+    "rejectedSolutions": [
+      {
+        "name": "Individual Voluntary Arrangement (IVA)",
+        "reason": "Excessive fees relative to total debt and surplus income."
+      },
+      {
+        "name": "Bankruptcy",
+        "reason": "Disproportionate legal costs (£680 application fee) when DRO is eligible."
+      }
+    ],
+    "debts": [
+      {
+        "id": "D1",
+        "creditor": "Manchester City Council",
+        "type": "Council Tax Arrears",
+        "balance": 1480,
+        "arrears": 620,
+        "interestRate": "0%",
+        "isPriority": true,
+        "accountNumber": "CT-881920",
+        "status": "verified"
+      },
+      {
+        "id": "D2",
+        "creditor": "Northern Energy",
+        "type": "Gas & Electricity Arrears",
+        "balance": 740,
+        "arrears": 240,
+        "interestRate": "0%",
+        "isPriority": true,
+        "accountNumber": "NE-44912",
+        "status": "verified"
+      },
+      {
+        "id": "D3",
+        "creditor": "Halbury Bank",
+        "type": "Credit Card",
+        "balance": 6240,
+        "arrears": 310,
+        "interestRate": "24.9%",
+        "isPriority": false,
+        "accountNumber": "CC-90123",
+        "status": "verified"
+      },
+      {
+        "id": "D4",
+        "creditor": "Vale Finance",
+        "type": "Personal Loan",
+        "balance": 5320,
+        "arrears": 0,
+        "interestRate": "12.4%",
+        "isPriority": false,
+        "accountNumber": "PL-5519",
+        "status": "verified"
+      },
+      {
+        "id": "D5",
+        "creditor": "Swiftpay",
+        "type": "BNPL",
+        "balance": 1180,
+        "arrears": 90,
+        "interestRate": "0%",
+        "isPriority": false,
+        "accountNumber": "SP-0021",
+        "status": "verified"
+      },
+      {
+        "id": "D6",
+        "creditor": "Orbit Catalogue",
+        "type": "Catalogue Debt",
+        "balance": 3460,
+        "arrears": 145,
+        "interestRate": "29.8%",
+        "isPriority": false,
+        "accountNumber": "OC-1049",
+        "status": "verified"
+      }
+    ],
+    "assets": [
+      {
+        "id": "A1",
+        "type": "Motor Vehicle",
+        "description": "2012 Ford Fiesta 1.2L (Mileage: 92,000)",
+        "estimatedValue": 1250,
+        "encumbrance": 0,
+        "exempt": true
+      },
+      {
+        "id": "A2",
+        "type": "Savings Account",
+        "description": "Halifax Savings",
+        "estimatedValue": 180,
+        "encumbrance": 0,
+        "exempt": true
+      }
+    ],
+    "documents": [
+      {
+        "id": "DOC-101",
+        "name": "Bank statement — May 2026.pdf",
+        "category": "bank_statement",
+        "size": "1.2 MB",
+        "uploadedAt": "2026-06-12",
+        "ocrStatus": "completed",
+        "verificationStatus": "verified",
+        "confidenceScore": 99,
+        "extractedInfo": {
+          "Opening Balance": "£340.20",
+          "Closing Balance": "£180.10",
+          "Total Credits": "£2,545.00",
+          "Debits Count": "42"
+        },
+        "version": 1
+      },
+      {
+        "id": "DOC-102",
+        "name": "Payslip — May 2026.pdf",
+        "category": "payslip",
+        "size": "480 KB",
+        "uploadedAt": "2026-06-12",
+        "ocrStatus": "completed",
+        "verificationStatus": "verified",
+        "confidenceScore": 97,
+        "extractedInfo": {
+          "Gross Pay": "£2,350.00",
+          "Net Pay": "£1,980.00",
+          "Tax Paid": "£280.00",
+          "NI Paid": "£90.00"
+        },
+        "version": 1
+      },
+      {
+        "id": "DOC-103",
+        "name": "Halbury Bank Arrears Notice.pdf",
+        "category": "creditor_letter",
+        "size": "320 KB",
+        "uploadedAt": "2026-06-18",
+        "ocrStatus": "completed",
+        "verificationStatus": "verified",
+        "confidenceScore": 96,
+        "extractedInfo": {
+          "Creditor": "Halbury Bank PLC",
+          "Account": "CC-90123",
+          "Outstanding": "£6,240.00",
+          "Notice Type": "Default Warning"
+        },
+        "version": 1
+      }
+    ],
+    "tasks": [
+      {
+        "id": "T1",
+        "title": "Clarify monthly childcare costs",
+        "assignee": "Amelia Hartley",
+        "type": "client_clarification",
+        "dueDate": "2026-08-12",
+        "priority": "high",
+        "status": "sent_to_client",
+        "description": "Request confirmation whether £180 monthly childcare is ongoing during school holidays."
+      },
+      {
+        "id": "T2",
+        "title": "Sign off DRO Suitability Notice",
+        "assignee": "Rachel Okonkwo",
+        "type": "solicitor_review",
+        "dueDate": "2026-08-10",
+        "priority": "urgent",
+        "status": "pending",
+        "description": "Final legal verification of total qualifying debt before submitting to Insolvency Service."
+      }
+    ],
+    "auditHistory": [
+      {
+        "id": "AUD-1",
+        "user": "AI Engine v4.2",
+        "role": "Automated Triage",
+        "timestamp": "2026-06-24 14:22",
+        "section": "AI Recommendation",
+        "previousValue": "Pending Analysis",
+        "newValue": "Debt Relief Order (DRO)",
+        "reason": "Completed standard financial evaluation."
+      },
+      {
+        "id": "AUD-2",
+        "user": "System OCR",
+        "role": "OCR Pipeline",
+        "timestamp": "2026-06-18 09:15",
+        "section": "Documents",
+        "previousValue": "Unprocessed",
+        "newValue": "Verified (99% confidence)",
+        "reason": "Extracted salary & creditor records from May PDF statements."
+      },
+      {
+        "id": "AUD-3",
+        "user": "Rachel Okonkwo",
+        "role": "Solicitor",
+        "timestamp": "2026-06-12 11:00",
+        "section": "Matter Status",
+        "previousValue": "New Matter",
+        "newValue": "Awaiting Review",
+        "reason": "Assigned matter MAT-2026-4417 to solicitor caseload."
+      }
+    ],
+    "referrals": [
+      {
+        "id": "REF-3391",
+        "partner": "Lowell & Grange Insolvency Practitioners",
+        "reason": "DRO Intermediary Application Processing",
+        "status": "accepted",
+        "date": "2026-06-24",
+        "contactPerson": "Mark Evans, IP",
+        "notes": "Intermediary approved to submit DRO to Official Receiver."
+      }
+    ],
+    "notes": [
+      {
+        "id": "N1",
+        "author": "Rachel Okonkwo",
+        "role": "Solicitor",
+        "date": "2026-06-24 15:10",
+        "content": "Reviewed AI DRO recommendation. Qualifying debts are verified. Client qualifies for DRO under revised 2024 limit rules.",
+        "isInternal": true
+      },
+      {
+        "id": "N2",
+        "author": "Rachel Okonkwo",
+        "role": "Solicitor",
+        "date": "2026-06-24 15:12",
+        "content": "Sent client update: Assessment complete and under final legal sign-off.",
+        "isInternal": false
+      }
+    ]
+  },
+  "MAT-2026-8801": {
+    "clientPhone": "+44 7700 900881",
+    "clientAddress": "12 King Street, Leeds, LS1 2BH",
+    "niNumber": "AB 98 76 54 D",
+    "dob": "02/11/1982",
+    "employmentStatus": "Self-Employed (IT Contractor)",
+    "employerName": "Vance Tech Solutions Ltd",
+    "monthlyNetIncome": 3400,
+    "benefitsIncome": 0,
+    "totalIncome": 3400,
+    "monthlyExpenses": 3110,
+    "priorityDebtTotal": 4800,
+    "nonPriorityDebtTotal": 29700,
+    "aiReasoning": [
+      "Total unsecured debt (£34,500) exceeds £20,000 threshold for IVA efficiency.",
+      "Monthly disposable income (£290) supports a realistic 60-month repayment schedule (£17,400 total return).",
+      "Client owns business assets requiring protection from bankruptcy liquidation."
+    ],
+    "alternativeSolutions": [
+      {
+        "name": "Debt Management Plan",
+        "pros": "Flexible informal arrangement",
+        "cons": "Creditors may continue charging high interest rates"
+      }
+    ],
+    "rejectedSolutions": [
+      {
+        "name": "Debt Relief Order",
+        "reason": "Debt (£34.5k) & surplus (£290) exceed DRO limits."
+      },
+      {
+        "name": "Bankruptcy",
+        "reason": "Would compromise self-employed business trading status."
+      }
+    ],
+    "debts": [
+      {
+        "id": "D81",
+        "creditor": "HMRC VAT & Tax",
+        "type": "Tax Arrears",
+        "balance": 4800,
+        "arrears": 4800,
+        "interestRate": "7.75%",
+        "isPriority": true,
+        "accountNumber": "HMRC- Leeds",
+        "status": "verified"
+      },
+      {
+        "id": "D82",
+        "creditor": "Barclays Business Credit",
+        "type": "Credit Card",
+        "balance": 14200,
+        "arrears": 1200,
+        "interestRate": "19.9%",
+        "isPriority": false,
+        "accountNumber": "BC-9918",
+        "status": "verified"
+      },
+      {
+        "id": "D83",
+        "creditor": "Funding Circle",
+        "type": "Unsecured Business Loan",
+        "balance": 15500,
+        "arrears": 0,
+        "interestRate": "14.2%",
+        "isPriority": false,
+        "accountNumber": "FC-3301",
+        "status": "verified"
+      }
+    ],
+    "assets": [
+      {
+        "id": "A81",
+        "type": "IT Equipment",
+        "description": "Workstations & Servers",
+        "estimatedValue": 3200,
+        "encumbrance": 0,
+        "exempt": false
+      }
+    ],
+    "documents": [
+      {
+        "id": "DOC-801",
+        "name": "HMRC Statutory Demand Notice.pdf",
+        "category": "creditor_letter",
+        "size": "2.1 MB",
+        "uploadedAt": "2026-08-05",
+        "ocrStatus": "completed",
+        "verificationStatus": "flagged",
+        "confidenceScore": 98,
+        "extractedInfo": {
+          "Creditor": "HMRC",
+          "Demand Amount": "£4,800.00",
+          "Deadline": "7 Days"
+        },
+        "version": 1
+      }
+    ],
+    "tasks": [
+      {
+        "id": "T81",
+        "title": "File Breathing Space application to pause HMRC enforcement",
+        "assignee": "Rachel Okonkwo",
+        "type": "solicitor_review",
+        "dueDate": "2026-08-08",
+        "priority": "urgent",
+        "status": "pending",
+        "description": "Statutory demand notice requires immediate Breathing Space registration."
+      }
+    ],
+    "auditHistory": [
+      {
+        "id": "AUD-81",
+        "user": "AI Engine v4.2",
+        "role": "Automated Triage",
+        "timestamp": "2026-08-05 16:30",
+        "section": "Risk Scoring",
+        "previousValue": "Medium Risk",
+        "newValue": "High Risk (Critical Enforcement)",
+        "reason": "Statutory Demand document detected by OCR parser."
+      }
+    ],
+    "referrals": [],
+    "notes": [
+      {
+        "id": "N81",
+        "author": "Rachel Okonkwo",
+        "role": "Solicitor",
+        "date": "2026-08-06 09:15",
+        "content": "Urgent HMRC threat. Preparing 60-day Breathing Space moratorium entry.",
+        "isInternal": true
+      }
+    ]
+  },
+  "MAT-2026-3104": {
+    "clientPhone": "+44 7700 900552",
+    "clientAddress": "19 Elm Street, Bristol, BS2 8RP",
+    "niNumber": "JL 44 21 09 A",
+    "dob": "22/08/1993",
+    "employmentStatus": "Unemployed / Carer",
+    "employerName": "N/A",
+    "monthlyNetIncome": 0,
+    "benefitsIncome": 1420,
+    "totalIncome": 1420,
+    "monthlyExpenses": 1465,
+    "vulnerabilityNotes": "Single mother of 2 children in severe budget deficit with active eviction threat.",
+    "priorityDebtTotal": 3400,
+    "nonPriorityDebtTotal": 4720,
+    "aiReasoning": [
+      "Negative disposable income (-£45 deficit) requires immediate hardship relief.",
+      "Priority rent & council tax arrears (£3,400) place family under immediate eviction risk.",
+      "Qualifies for 100% debt write-off via DRO once emergency Breathing Space is registered."
+    ],
+    "alternativeSolutions": [],
+    "rejectedSolutions": [
+      {
+        "name": "DMP / IVA",
+        "reason": "Client has negative surplus income (-£45); cannot sustain monthly payments."
+      }
+    ],
+    "debts": [
+      {
+        "id": "D31",
+        "creditor": "Bristol Housing Trust",
+        "type": "Rent Arrears",
+        "balance": 2400,
+        "arrears": 2400,
+        "interestRate": "0%",
+        "isPriority": true,
+        "accountNumber": "RENT-9921",
+        "status": "verified"
+      },
+      {
+        "id": "D32",
+        "creditor": "Bristol City Council",
+        "type": "Council Tax",
+        "balance": 1000,
+        "arrears": 1000,
+        "interestRate": "0%",
+        "isPriority": true,
+        "accountNumber": "CT-33019",
+        "status": "verified"
+      },
+      {
+        "id": "D33",
+        "creditor": "Provident Personal Credit",
+        "type": "Doorstep Loan",
+        "balance": 4720,
+        "arrears": 850,
+        "interestRate": "45.0%",
+        "isPriority": false,
+        "accountNumber": "PPC-102",
+        "status": "verified"
+      }
+    ],
+    "assets": [],
+    "documents": [
+      {
+        "id": "DOC-301",
+        "name": "Eviction Warning Notice - Landlord.pdf",
+        "category": "tenancy",
+        "size": "1.8 MB",
+        "uploadedAt": "2026-08-06",
+        "ocrStatus": "completed",
+        "verificationStatus": "flagged",
+        "confidenceScore": 99,
+        "extractedInfo": {
+          "Landlord": "Bristol Housing",
+          "Possession Hearing Date": "14 Aug 2026"
+        },
+        "version": 1
+      }
+    ],
+    "tasks": [
+      {
+        "id": "T31",
+        "title": "Submit Emergency Breathing Space to Insolvency Service",
+        "assignee": "Rachel Okonkwo",
+        "type": "solicitor_review",
+        "dueDate": "2026-08-07",
+        "priority": "urgent",
+        "status": "pending",
+        "description": "Halt eviction proceedings before Aug 14 hearing."
+      }
+    ],
+    "auditHistory": [
+      {
+        "id": "AUD-31",
+        "user": "AI Engine v4.2",
+        "role": "Automated Triage",
+        "timestamp": "2026-08-06 18:00",
+        "section": "Vulnerability Flag",
+        "previousValue": "None",
+        "newValue": "Critical Hardship",
+        "reason": "Eviction notice detected in OCR parse."
+      }
+    ],
+    "referrals": [
+      {
+        "id": "REF-3101",
+        "partner": "Shelter UK Housing Legal Aid",
+        "reason": "Representation at eviction possession hearing",
+        "status": "initiated",
+        "date": "2026-08-07",
+        "contactPerson": "Shelter Bristol Office",
+        "notes": "Referral submitted to prevent homelessness."
+      }
+    ],
+    "notes": [
+      {
+        "id": "N31",
+        "author": "Rachel Okonkwo",
+        "role": "Solicitor",
+        "date": "2026-08-07 08:30",
+        "content": "Prioritising this matter for instant emergency Breathing Space submission today.",
+        "isInternal": true
+      }
+    ]
+  },
+  "MAT-2026-9210": {
+    "clientPhone": "+44 7700 900192",
+    "clientAddress": "7 Oakwood Drive, Birmingham, B15 2TT",
+    "niNumber": "WM 88 12 34 B",
+    "dob": "30/03/1975",
+    "employmentStatus": "Employed (Senior Manager)",
+    "employerName": "Midland Infrastructure Group",
+    "monthlyNetIncome": 4200,
+    "benefitsIncome": 0,
+    "totalIncome": 4200,
+    "monthlyExpenses": 3750,
+    "priorityDebtTotal": 0,
+    "nonPriorityDebtTotal": 42000,
+    "aiReasoning": [
+      "Client holds £65,000 equity in primary property, ruling out DRO and making IVA less favorable due to equity release clauses.",
+      "Monthly surplus of £450 is sufficient to repay £42,000 total debt in ~7.7 years via structured DMP.",
+      "Avoids placing charge or forced sale on residential property."
+    ],
+    "alternativeSolutions": [
+      {
+        "name": "Individual Voluntary Arrangement",
+        "pros": "Fixed 5 year duration",
+        "cons": "Would require £40,000 equity remortgage or extension"
+      }
+    ],
+    "rejectedSolutions": [
+      {
+        "name": "Debt Relief Order",
+        "reason": "Debt exceeding £50k cap and property equity exceeding £2k limit."
+      },
+      {
+        "name": "Bankruptcy",
+        "reason": "High risk of forced property sale by Trustee in Bankruptcy."
+      }
+    ],
+    "debts": [
+      {
+        "id": "D91",
+        "creditor": "Halifax Credit",
+        "type": "Credit Card",
+        "balance": 18500,
+        "arrears": 0,
+        "interestRate": "19.9%",
+        "isPriority": false,
+        "accountNumber": "HX-9901",
+        "status": "verified"
+      },
+      {
+        "id": "D92",
+        "creditor": "MBNA",
+        "type": "Credit Card",
+        "balance": 14000,
+        "arrears": 0,
+        "interestRate": "22.4%",
+        "isPriority": false,
+        "accountNumber": "MB-2210",
+        "status": "verified"
+      },
+      {
+        "id": "D93",
+        "creditor": "Sainsbury's Bank",
+        "type": "Personal Loan",
+        "balance": 9500,
+        "arrears": 0,
+        "interestRate": "9.8%",
+        "isPriority": false,
+        "accountNumber": "SB-4401",
+        "status": "verified"
+      }
+    ],
+    "assets": [
+      {
+        "id": "A91",
+        "type": "Residential Property",
+        "description": "4 Bed Detached, Birmingham (Valued £420,000, Mortgage £355,000)",
+        "estimatedValue": 420000,
+        "encumbrance": 355000,
+        "exempt": false
+      }
+    ],
+    "documents": [
+      {
+        "id": "DOC-901",
+        "name": "Mortgage Statement 2026.pdf",
+        "category": "bank_statement",
+        "size": "950 KB",
+        "uploadedAt": "2026-07-16",
+        "ocrStatus": "completed",
+        "verificationStatus": "verified",
+        "confidenceScore": 99,
+        "extractedInfo": {
+          "Lender": "Nationwide",
+          "Balance": "£355,000.00"
+        },
+        "version": 1
+      }
+    ],
+    "tasks": [
+      {
+        "id": "T91",
+        "title": "Approve formal DMP Advice Document package",
+        "assignee": "Rachel Okonkwo",
+        "type": "solicitor_review",
+        "dueDate": "2026-08-09",
+        "priority": "high",
+        "status": "pending",
+        "description": "Review and approve DMP formal proposal for PayPlan dispatch."
+      }
+    ],
+    "auditHistory": [
+      {
+        "id": "AUD-91",
+        "user": "Rachel Okonkwo",
+        "role": "Solicitor",
+        "timestamp": "2026-08-05 14:00",
+        "section": "Advice Generation",
+        "previousValue": "Drafting",
+        "newValue": "Awaiting Approval",
+        "reason": "Drafted formal DMP advice letter preserving property equity."
+      }
+    ],
+    "referrals": [],
+    "notes": []
+  },
+  "MAT-2026-1158": {
+    "clientPhone": "+44 7700 900662",
+    "clientAddress": "88 Queens Road, London, SE15 2AA",
+    "niNumber": "ER 11 22 33 X",
+    "dob": "11/04/1990",
+    "employmentStatus": "Employed (Retail)",
+    "employerName": "Marks & Spencer PLC",
+    "monthlyNetIncome": 1650,
+    "benefitsIncome": 0,
+    "totalIncome": 1650,
+    "monthlyExpenses": 1570,
+    "vulnerabilityNotes": "Client reported acute anxiety; requested written-only communication.",
+    "priorityDebtTotal": 950,
+    "nonPriorityDebtTotal": 11650,
+    "aiReasoning": [
+      "Total debt (£12,600) is well within DRO limit.",
+      "Disposable income (£80) requires clarification on £40 monthly unverified subscription debits."
+    ],
+    "alternativeSolutions": [],
+    "rejectedSolutions": [],
+    "debts": [
+      {
+        "id": "D111",
+        "creditor": "Thames Water",
+        "type": "Water Arrears",
+        "balance": 950,
+        "arrears": 350,
+        "interestRate": "0%",
+        "isPriority": true,
+        "accountNumber": "TW-9012",
+        "status": "verified"
+      },
+      {
+        "id": "D112",
+        "creditor": "Vanquis Bank",
+        "type": "Credit Card",
+        "balance": 4200,
+        "arrears": 180,
+        "interestRate": "39.9%",
+        "isPriority": false,
+        "accountNumber": "VQ-1102",
+        "status": "verified"
+      },
+      {
+        "id": "D113",
+        "creditor": "Capital One",
+        "type": "Credit Card",
+        "balance": 7450,
+        "arrears": 0,
+        "interestRate": "29.9%",
+        "isPriority": false,
+        "accountNumber": "CO-8812",
+        "status": "verified"
+      }
+    ],
+    "assets": [],
+    "documents": [
+      {
+        "id": "DOC-1101",
+        "name": "Bank Statement - June (Incomplete).pdf",
+        "category": "bank_statement",
+        "size": "640 KB",
+        "uploadedAt": "2026-07-21",
+        "ocrStatus": "needs_review",
+        "verificationStatus": "flagged",
+        "confidenceScore": 78,
+        "extractedInfo": {
+          "Pages": "1 of 2",
+          "Missing": "Page 2 debits"
+        },
+        "version": 1
+      }
+    ],
+    "tasks": [
+      {
+        "id": "T1101",
+        "title": "Provide Page 2 of June Bank Statement",
+        "assignee": "Elena Rostova",
+        "type": "missing_info_request",
+        "dueDate": "2026-08-14",
+        "priority": "medium",
+        "status": "sent_to_client",
+        "description": "Page 2 missing from upload batch."
+      }
+    ],
+    "auditHistory": [],
+    "referrals": [],
+    "notes": []
+  },
+  "MAT-2026-7492": {
+    "clientPhone": "+44 7700 900441",
+    "clientAddress": "104 Park Lane, Sheffield, S10 2RD",
+    "niNumber": "TM 55 66 77 C",
+    "dob": "05/09/1980",
+    "employmentStatus": "Employed",
+    "employerName": "Yorkshire Transport",
+    "monthlyNetIncome": 2850,
+    "benefitsIncome": 0,
+    "totalIncome": 2850,
+    "monthlyExpenses": 2640,
+    "priorityDebtTotal": 0,
+    "nonPriorityDebtTotal": 26800,
+    "aiReasoning": [
+      "54-month IVA approved with 42% projected creditor dividend.",
+      "Solicitor approved advice package issued to client on 02 Aug 2026."
+    ],
+    "alternativeSolutions": [],
+    "rejectedSolutions": [],
+    "solicitorDecision": {
+      "action": "approve",
+      "solicitorName": "Rachel Okonkwo",
+      "decidedAt": "2026-08-02 11:30",
+      "notes": "Fully verified income & expenses. IVA proposal signed and dispatched to insolvency practitioner."
+    },
+    "debts": [
+      {
+        "id": "D701",
+        "creditor": "Santander",
+        "type": "Personal Loan",
+        "balance": 16800,
+        "arrears": 0,
+        "interestRate": "11.2%",
+        "isPriority": false,
+        "accountNumber": "SAN-9901",
+        "status": "verified"
+      },
+      {
+        "id": "D702",
+        "creditor": "HSBC Credit",
+        "type": "Credit Card",
+        "balance": 10000,
+        "arrears": 0,
+        "interestRate": "18.9%",
+        "isPriority": false,
+        "accountNumber": "HS-3390",
+        "status": "verified"
+      }
+    ],
+    "assets": [],
+    "documents": [],
+    "tasks": [],
+    "auditHistory": [
+      {
+        "id": "AUD-701",
+        "user": "Rachel Okonkwo",
+        "role": "Solicitor",
+        "timestamp": "2026-08-02 11:30",
+        "section": "Solicitor Decision",
+        "previousValue": "Awaiting Review",
+        "newValue": "Approved",
+        "reason": "Issued formal IVA legal advice letter."
+      }
+    ],
+    "referrals": [],
+    "notes": []
+  },
+  "MAT-2026-5033": {
+    "clientPhone": "+44 7700 900223",
+    "clientAddress": "15 Victoria Road, Glasgow, G42 8YU",
+    "niNumber": "FG 33 44 55 E",
+    "dob": "19/12/1991",
+    "employmentStatus": "Employed",
+    "employerName": "Glasgow Care Services",
+    "monthlyNetIncome": 1820,
+    "benefitsIncome": 0,
+    "totalIncome": 1820,
+    "monthlyExpenses": 1710,
+    "vulnerabilityNotes": "Requires translated advice summary documents (Polish).",
+    "priorityDebtTotal": 1200,
+    "nonPriorityDebtTotal": 14700,
+    "aiReasoning": [
+      "Scottish Debt Arrangement Scheme (DAS) recommended for Scottish jurisdiction compliance."
+    ],
+    "alternativeSolutions": [],
+    "rejectedSolutions": [],
+    "debts": [],
+    "assets": [],
+    "documents": [],
+    "tasks": [],
+    "auditHistory": [],
+    "referrals": [
+      {
+        "id": "REF-501",
+        "partner": "Glasgow Money Advice Service (Scottish DAS)",
+        "reason": "Debt Arrangement Scheme setup in Scotland",
+        "status": "in_progress",
+        "date": "2026-07-25",
+        "contactPerson": "Ian McTavish",
+        "notes": "Case transferred to Scottish accredited money adviser."
+      }
+    ],
+    "notes": []
+  },
+  "MAT-2026-6620": {
+    "clientPhone": "+44 7700 900774",
+    "clientAddress": "42 High Street, Nottingham, NG1 5FD",
+    "niNumber": "AP 77 88 99 Z",
+    "dob": "04/01/1954",
+    "employmentStatus": "Retired (State Pension + Private)",
+    "employerName": "N/A",
+    "monthlyNetIncome": 1450,
+    "benefitsIncome": 220,
+    "totalIncome": 1670,
+    "monthlyExpenses": 1640,
+    "vulnerabilityNotes": "Pensioner with mobility limitations.",
+    "priorityDebtTotal": 0,
+    "nonPriorityDebtTotal": 6400,
+    "aiReasoning": [
+      "Low total debt (£6,400) and minimal surplus (£30) qualifies for fast-track DRO."
+    ],
+    "alternativeSolutions": [],
+    "rejectedSolutions": [],
+    "debts": [],
+    "assets": [],
+    "documents": [
+      {
+        "id": "DOC-601",
+        "name": "State Pension Statement 2026.pdf",
+        "category": "payslip",
+        "size": "310 KB",
+        "uploadedAt": "2026-08-05",
+        "ocrStatus": "completed",
+        "verificationStatus": "pending",
+        "confidenceScore": 96,
+        "extractedInfo": {
+          "Pension Amount": "£1,450.00/mo"
+        },
+        "version": 1
+      }
+    ],
+    "tasks": [],
+    "auditHistory": [],
+    "referrals": [],
+    "notes": []
+  }
+}

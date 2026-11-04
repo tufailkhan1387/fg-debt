@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="FG Debt Advisor">
+  <defs>
+    <linearGradient id="bg" x1="4" y1="2" x2="28" y2="30" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1E2A4A"/>
+      <stop offset="1" stop-color="#2C3B63"/>
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="8" fill="url(#bg)"/>
+  <g fill="none" stroke="#F7F8FB" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M16 7v17"/>
+    <path d="M10.5 25.5h11"/>
+    <path d="M8 11.5h2.2c1.8 0 4.2-.8 5.8-1.6 1.6.8 4 1.6 5.8 1.6H24"/>
+    <path d="m8.2 19.2 2.3-6.2 2.3 6.2c-.65.5-1.45.75-2.3.75s-1.65-.25-2.3-.75Z"/>
+    <path d="m19.2 19.2 2.3-6.2 2.3 6.2c-.65.5-1.45.75-2.3.75s-1.65-.25-2.3-.75Z"/>
+  </g>
+</svg>
