@@ -34,10 +34,13 @@ The server keeps `.env`, `uploads/` and `backups/` in `~/apps/fg-backend` betwee
 On your own computer:
 
 ```bash
-ssh-keygen -t ed25519 -f fg-deploy -N "" -C "github-deploy"
+ssh-keygen -t rsa -b 4096 -m PEM -f fg-deploy -N "" -C "github-deploy"
 ```
 
-- Add `fg-deploy.pub` in Webuzo -> SSH Access -> Manage keys (authorize it).
+(Webuzo rejects ed25519 keys.)
+
+- Import `fg-deploy.pub` in Webuzo -> SSH Access (`index.php?act=ssh_access`) and click Authorize.
+- Admin panel (port 2004) -> Users -> Manage Shell Access: Normal Shell ON for `firm`.
 - GitHub repo -> Settings -> Secrets and variables -> Actions -> New repository secret:
 
 | Secret | Value |
