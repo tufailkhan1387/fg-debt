@@ -15,6 +15,10 @@ Every push to `main` runs `.github/workflows/deploy.yml`, which:
 
 The server keeps `.env`, `uploads/` and `backups/` in `~/apps/fg-backend` between deploys.
 
+The web upload replaces everything in `~/public_html` (`rsync --delete`) except `backend/`, `.well-known/`,
+`cgi-bin/` and `cosguard.co.uk/`. Any other site or folder put in `public_html` must be added as an
+`--exclude` in `.github/workflows/deploy.yml`, or the next push deletes it.
+
 ## One-time setup
 
 ### 1. Webuzo panel

@@ -83,9 +83,11 @@ jobs:
 
       - name: Upload web app
         run: |
-          # The backend/ folder (API proxy) and server-managed folders are kept.
+          # The backend/ folder (API proxy), server-managed folders and other sites hosted here
+          # (cosguard.co.uk) are kept.
           rsync -az --delete \
             --exclude '/backend/' --exclude '/.well-known/' --exclude '/cgi-bin/' \
+            --exclude '/cosguard.co.uk/' \
             fg-debt/dist/ "server:$WEB_ROOT/"
           ssh server "mkdir -p ~/$WEB_ROOT/backend"
           rsync -az deploy/backend.htaccess "server:$WEB_ROOT/backend/.htaccess"
