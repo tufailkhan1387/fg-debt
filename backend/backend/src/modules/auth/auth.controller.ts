@@ -7,6 +7,7 @@ import {
   forgotPasswordSchema,
   loginSchema,
   mfaCodeSchema,
+  mfaTokenSchema,
   mfaVerifySchema,
   registerSchema,
   resetPasswordSchema,
@@ -45,6 +46,16 @@ export const authController = {
     try {
       const input = parseBody(mfaVerifySchema, req.body);
       const data = await authService.verifyMfaLogin(input, req.ip);
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async setupMfaAtLogin(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { mfaToken } = parseBody(mfaTokenSchema, req.body);
+      const data = await authService.setupMfaAtLogin(mfaToken);
       res.json({ success: true, data });
     } catch (error) {
       next(error);

@@ -43,9 +43,11 @@ export const mfaCodeSchema = z.object({
   code: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit code from your authenticator app."),
 });
 
-export const mfaVerifySchema = mfaCodeSchema.extend({
+export const mfaTokenSchema = z.object({
   mfaToken: z.string().min(1, "Sign-in attempt is missing. Please sign in again."),
 });
+
+export const mfaVerifySchema = mfaCodeSchema.merge(mfaTokenSchema);
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;

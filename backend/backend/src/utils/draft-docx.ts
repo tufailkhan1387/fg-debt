@@ -2,9 +2,9 @@ import { Document, Header, HeadingLevel, Packer, Paragraph, TextRun } from "docx
 
 /**
  * Turns plain draft text ("# " / "## " headings, "- " list items, blank-line paragraphs) into a Word document,
- * marked on every page as a draft awaiting approval.
+ * marked on every page with the note when one is given (e.g. a draft awaiting approval).
  */
-export async function draftToDocx(title: string, text: string, note: string): Promise<Buffer> {
+export async function draftToDocx(title: string, text: string, note?: string): Promise<Buffer> {
   const paragraphs: Paragraph[] = [];
   for (const raw of text.split(/\n/)) {
     const line = raw.trimEnd();
@@ -25,11 +25,15 @@ export async function draftToDocx(title: string, text: string, note: string): Pr
     title,
     sections: [
       {
-        headers: {
-          default: new Header({
-            children: [new Paragraph({ children: [new TextRun({ text: note, italics: true, size: 18, color: "B45309" })] })],
-          }),
-        },
+        ...(note
+          ? {
+              headers: {
+                default: new Header({
+                  children: [new Paragraph({ children: [new TextRun({ text: note, italics: true, size: 18, color: "B45309" })] })],
+                }),
+              },
+            }
+          : {}),
         children: paragraphs,
       },
     ],

@@ -177,6 +177,39 @@ export function useArchivePolicy() {
   );
 }
 
+/** Wording of the version in force, ready for the in-app editor. Loaded fresh each time the editor opens. */
+export function usePolicyText(id: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["compliance", "policies", id, "text"],
+    queryFn: () =>
+      apiRequest<{ text: string; versionNumber: number; fileName: string }>(`${BASE}/${encodeURIComponent(id)}/text`),
+    enabled,
+    gcTime: 0,
+    staleTime: 0,
+    retry: false,
+  });
+}
+
+export function useSavePolicyText() {
+  return usePolicyMutation(({ id, text, changeSummary }: { id: string; text: string; changeSummary: string }) =>
+    apiRequest<{ policy: PolicyDetail }>(`${BASE}/${encodeURIComponent(id)}/text`, {
+      method: "POST",
+      body: { text, changeSummary },
+    }),
+  );
+}
+
+export function useDeletePolicy() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiRequest<{ message: string }>(`${BASE}/${encodeURIComponent(id)}`, { method: "DELETE" }),
+    onSuccess: (_data, id) => {
+      queryClient.removeQueries({ queryKey: detailKey(id) });
+      queryClient.invalidateQueries({ queryKey: LIST_KEY, exact: true });
+    },
+  });
+}
+
 export function downloadPolicyVersion(version: PolicyVersion) {
   return downloadCsvExport(`${BASE}/versions/${encodeURIComponent(version.id)}/file`, version.fileName);
 }

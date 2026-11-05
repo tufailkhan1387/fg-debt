@@ -16,6 +16,7 @@ export const authRouter = Router();
 authRouter.post("/register", authLimiter, authController.register);
 authRouter.post("/login", authLimiter, authController.login);
 authRouter.post("/mfa/verify", authLimiter, authController.verifyMfa);
+authRouter.post("/mfa/login-setup", authLimiter, authController.setupMfaAtLogin);
 authRouter.post("/mfa/setup", authenticate, authController.setupMfa);
 authRouter.post("/mfa/enable", authLimiter, authenticate, authController.enableMfa);
 authRouter.post("/mfa/disable", authLimiter, authenticate, authController.disableMfa);

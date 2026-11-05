@@ -17,6 +17,7 @@ export interface UserRow {
   compliance_role: ComplianceRole | null;
   mfa_secret_enc: string | null;
   mfa_enabled: boolean;
+  mfa_required: boolean;
   created_at: Date;
   updated_at: Date;
 }
@@ -33,6 +34,7 @@ export interface PublicUser {
   sraNumber?: string;
   complianceRole?: ComplianceRole;
   mfaEnabled: boolean;
+  mfaRequired: boolean;
 }
 
 export interface AuthTokenPayload {
@@ -51,4 +53,6 @@ export interface AuthResult {
 export interface MfaChallenge {
   mfaRequired: true;
   mfaToken: string;
+  /** The Principal requires two-factor but the user has not set it up yet: they must enrol before signing in. */
+  mfaSetupRequired?: true;
 }

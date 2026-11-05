@@ -9,6 +9,8 @@ export interface AuthPayload {
 export interface MfaChallenge {
   mfaRequired: true;
   mfaToken: string;
+  /** Two-factor is required for this account but not set up yet: it must be set up before signing in. */
+  mfaSetupRequired?: true;
 }
 
 export function loginRequest(body: { email: string; password: string; rememberMe?: boolean }) {
@@ -17,6 +19,13 @@ export function loginRequest(body: { email: string; password: string; rememberMe
 
 export function verifyMfaRequest(body: { mfaToken: string; code: string }) {
   return apiRequest<AuthPayload>("/api/auth/mfa/verify", { method: "POST", body });
+}
+
+export function setupMfaAtLoginRequest(mfaToken: string) {
+  return apiRequest<{ secret: string; otpauthUrl: string }>("/api/auth/mfa/login-setup", {
+    method: "POST",
+    body: { mfaToken },
+  });
 }
 
 export function setupMfaRequest() {

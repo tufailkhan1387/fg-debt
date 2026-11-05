@@ -10,5 +10,7 @@ complianceAccessRouter.get("/me", authenticate, requireSolicitor, accessControll
 complianceAccessRouter.get("/users", authenticate, requireCompliance("principal"), accessController.listUsers);
 complianceAccessRouter.post("/users", authenticate, requireCompliance("principal"), accessController.createUser);
 complianceAccessRouter.patch("/users/:id", authenticate, requireCompliance("principal"), accessController.updateUser);
+complianceAccessRouter.delete("/users/:id", authenticate, requireCompliance("principal"), accessController.deleteUser);
+complianceAccessRouter.post("/users/:id/mfa/reset", authenticate, requireCompliance("principal"), accessController.resetUserMfa);
 complianceAccessRouter.get("/log", authenticate, requireCompliance("principal"), accessController.listLog);
 complianceAccessRouter.get("/log/export", authenticate, requireCompliance("principal"), accessController.exportLog);

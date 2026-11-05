@@ -1,6 +1,9 @@
+import mammoth from "mammoth";
 import type pg from "pg";
 import { pool, query } from "../../db/pool.js";
 import { AppError } from "../../middleware/appError.js";
+import { documentText } from "../../utils/document-text.js";
+import { draftToDocx } from "../../utils/draft-docx.js";
 import { readEncryptedFile, removeStoredFiles, storeEncryptedFile } from "../../utils/encrypted-store.js";
 import type { ComplianceRole } from "../auth/auth.types.js";
 import { recordAccessLog } from "../compliance-access/access-log.js";
@@ -64,6 +67,41 @@ function requirePrincipal(actor: PolicyActor, what: string) {
   if (actor.role !== "principal") {
     throw new AppError(`Only the Principal can ${what}.`, 403, "FORBIDDEN");
   }
+}
+
+const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+function decodeEntities(text: string): string {
+  return text
+    .replace(/&nbsp;/g, " ")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#(\d+);/g, (_, code: string) => String.fromCharCode(Number(code)))
+    .replace(/&amp;/g, "&");
+}
+
+/**
+ * Word HTML (from mammoth) to the plain editing format draftToDocx reads back:
+ * "# " / "## " headings, "- " list items, one paragraph per line.
+ */
+function wordHtmlToEditableText(html: string): string {
+  const text = html
+    // A table row becomes one line, its cells separated by " | " (cells hold their own paragraphs).
+    .replace(/<(td|th)[^>]*>([\s\S]*?)<\/\1>/gi, (_, _tag: string, cell: string) => `${cell.replace(/<\/p>\s*<p[^>]*>/gi, " ").replace(/<\/?p[^>]*>/gi, "")} | `)
+    .replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, "\n# $1\n")
+    .replace(/<h[2-6][^>]*>([\s\S]*?)<\/h[2-6]>/gi, "\n## $1\n")
+    .replace(/<li[^>]*>/gi, "\n- ")
+    .replace(/<\/li>/gi, "\n")
+    .replace(/<\/(p|tr|ul|ol|table)>/gi, "\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "");
+  return decodeEntities(text)
+    .split("\n")
+    .map((line) => line.replace(/[ \t]+/g, " ").replace(/\s*\|\s*$/, "").trim())
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 /** Files written during a transaction, so they can be removed if it rolls back. */
@@ -329,6 +367,59 @@ export const policyLibraryService = {
       changeSummary,
     });
     return this.get(id, actor);
+  },
+
+  /** Text of the version in force (or the latest one), in the format the in-app editor saves back to Word. */
+  async editableText(id: string, actor: PolicyActor): Promise<{ text: string; versionNumber: number; fileName: string }> {
+    const policy = await getPolicyRow(id);
+    const version = (
+      await query<VersionRow>(
+        `SELECT ${VERSION_COLUMNS} FROM compliance_policy_versions WHERE policy_id = $1
+         ORDER BY (id = $2) DESC, version_number DESC LIMIT 1`,
+        [id, policy.current_version_id],
+      )
+    ).rows[0];
+    if (!version) throw new AppError("This policy has no document yet.", 404, "VERSION_NOT_FOUND");
+    const buffer = await readEncryptedFile(version.storage_path, version.sha256);
+    let text: string;
+    if (version.file_name.toLowerCase().endsWith(".docx")) {
+      try {
+        text = wordHtmlToEditableText((await mammoth.convertToHtml({ buffer })).value);
+      } catch {
+        throw new AppError("This Word document could not be read. It may be damaged or password-protected.", 400, "UNREADABLE_DOCUMENT");
+      }
+    } else {
+      text = await documentText(buffer, version.file_name);
+    }
+    await log(actor, "policy.opened_for_editing", policy.title, { version: version.version_number });
+    return { text, versionNumber: version.version_number, fileName: version.file_name };
+  },
+
+  /** Saves wording edited in the app as a new Word version. Like an upload, it needs the Principal's approval. */
+  async saveEditedText(id: string, text: string, changeSummary: string, actor: PolicyActor): Promise<PolicyDetail> {
+    const policy = await getPolicyRow(id);
+    const buffer = await draftToDocx(policy.title, text);
+    return this.addVersion(
+      id,
+      { originalname: `${policy.title}.docx`, mimetype: DOCX_MIME, size: buffer.length, buffer },
+      changeSummary,
+      actor,
+    );
+  },
+
+  /** Permanently removes a policy with every version, its files and acknowledgements. The access log keeps the record. */
+  async remove(id: string, actor: PolicyActor): Promise<void> {
+    requirePrincipal(actor, "delete policies");
+    const policy = await getPolicyRow(id);
+    const files = (
+      await query<{ storage_path: string; version_number: number }>(
+        "SELECT storage_path, version_number FROM compliance_policy_versions WHERE policy_id = $1",
+        [id],
+      )
+    ).rows;
+    await query("DELETE FROM compliance_policies WHERE id = $1", [id]);
+    await removeStoredFiles(files.map((f) => f.storage_path));
+    await log(actor, "policy.deleted", policy.title, { category: policy.category, versions: files.length });
   },
 
   async approve(versionId: string, approvedOn: string | undefined, actor: PolicyActor): Promise<PolicyDetail> {

@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Eye, EyeOff, Loader2, LogIn, ShieldCheck } from "lucide-react";
+import { Copy, Eye, EyeOff, Loader2, LogIn, ShieldCheck } from "lucide-react";
 import { AuthLayout } from "@/components/auth/AuthLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,7 @@ import {
   SOLICITOR_DEMO_CREDENTIALS,
   type UserProfile,
 } from "@/lib/auth";
-import { loginRequest, verifyMfaRequest } from "@/lib/auth-api";
+import { loginRequest, setupMfaAtLoginRequest, verifyMfaRequest } from "@/lib/auth-api";
 import { ApiError } from "@/lib/api";
 import { getClientLandingPath } from "@/lib/assessment-guard";
 import { isAssessmentComplete } from "@/lib/assessment-progress";
@@ -45,6 +45,8 @@ function LoginPage() {
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const [mfaToken, setMfaToken] = useState<string | null>(null);
   const [mfaCode, setMfaCode] = useState("");
+  // Set when the firm requires two-factor and this person has not set it up yet.
+  const [mfaSetup, setMfaSetup] = useState<{ secret: string; otpauthUrl: string } | null>(null);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -99,6 +101,7 @@ function LoginPage() {
     try {
       const result = await loginRequest({ email, password, rememberMe });
       if ("mfaRequired" in result) {
+        setMfaSetup(result.mfaSetupRequired ? await setupMfaAtLoginRequest(result.mfaToken) : null);
         setMfaToken(result.mfaToken);
         setMfaCode("");
         return;
@@ -115,8 +118,12 @@ function LoginPage() {
   if (mfaToken) {
     return (
       <AuthLayout
-        title="Two-factor verification"
-        subtitle="Enter the 6-digit code from your authenticator app."
+        title={mfaSetup ? "Set up two-factor sign-in" : "Two-factor verification"}
+        subtitle={
+          mfaSetup
+            ? "Your firm requires two-factor sign-in for your account. Add it to an authenticator app to continue."
+            : "Enter the 6-digit code from your authenticator app."
+        }
         footer={
           <button
             type="button"
@@ -128,6 +135,42 @@ function LoginPage() {
         }
       >
         <form onSubmit={submitMfa} className="space-y-5" noValidate>
+          {mfaSetup && (
+            <ol className="list-decimal space-y-2 pl-5 text-sm text-muted-foreground">
+              <li>
+                In an authenticator app (Microsoft Authenticator, Google Authenticator or similar), choose "Add
+                account" and "Enter a setup key".
+              </li>
+              <li>
+                Use your email as the account name and this key:
+                <div className="mt-2 flex items-center gap-2">
+                  <code className="rounded-md bg-muted px-2 py-1 font-mono text-sm text-foreground">
+                    {mfaSetup.secret.match(/.{1,4}/g)?.join(" ")}
+                  </code>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    aria-label="Copy key"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(mfaSetup.secret);
+                      toast.success("Key copied.");
+                    }}
+                  >
+                    <Copy className="size-4" />
+                  </Button>
+                </div>
+                <span className="mt-1 block text-xs">
+                  On a phone you can instead{" "}
+                  <a href={mfaSetup.otpauthUrl} className="underline underline-offset-4">
+                    open this link
+                  </a>{" "}
+                  to add it.
+                </span>
+              </li>
+              <li>Enter the 6-digit code the app shows.</li>
+            </ol>
+          )}
           <div className="flex justify-center">
             <InputOTP maxLength={6} value={mfaCode} onChange={setMfaCode} autoFocus>
               <InputOTPGroup>
@@ -139,7 +182,7 @@ function LoginPage() {
           </div>
           <Button type="submit" size="lg" className="w-full" disabled={loading || mfaCode.length !== 6}>
             {loading ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
-            {loading ? "Verifying…" : "Verify and sign in"}
+            {loading ? "Verifying…" : mfaSetup ? "Turn on two-factor and sign in" : "Verify and sign in"}
           </Button>
         </form>
       </AuthLayout>

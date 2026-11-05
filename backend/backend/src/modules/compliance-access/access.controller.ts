@@ -71,6 +71,24 @@ export const accessController = {
     }
   },
 
+  async deleteUser(req: Request, res: Response, next: NextFunction) {
+    try {
+      await accessService.deleteUser(idParam(req.params.id), actorOf(req));
+      res.json({ success: true, data: { message: "User removed." } });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async resetUserMfa(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = await accessService.resetUserMfa(idParam(req.params.id), actorOf(req));
+      res.json({ success: true, data: { user } });
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async listLog(req: Request, res: Response, next: NextFunction) {
     try {
       const filters = parse(listLogQuerySchema, req.query);

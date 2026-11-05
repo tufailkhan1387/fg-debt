@@ -37,6 +37,7 @@ export interface FirmUser {
   title: string;
   complianceRole: ComplianceRole | null;
   mfaEnabled: boolean;
+  mfaRequired: boolean;
   permissions: PermissionMap;
 }
 

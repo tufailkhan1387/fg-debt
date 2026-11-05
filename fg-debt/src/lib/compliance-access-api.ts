@@ -25,6 +25,7 @@ export interface FirmUser {
   title: string;
   complianceRole: ComplianceRole | null;
   mfaEnabled: boolean;
+  mfaRequired: boolean;
   permissions: PermissionMap;
 }
 
@@ -79,15 +80,38 @@ export function useCreateFirmUser() {
 export function useUpdateFirmUser() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (payload: { id: string; complianceRole?: ComplianceRole | null; permissions?: PermissionMap }) =>
+    mutationFn: (payload: {
+      id: string;
+      complianceRole?: ComplianceRole | null;
+      permissions?: PermissionMap;
+      mfaRequired?: boolean;
+    }) =>
       apiRequest<{ user: FirmUser }>(`${BASE}/users/${encodeURIComponent(payload.id)}`, {
         method: "PATCH",
-        body: { complianceRole: payload.complianceRole, permissions: payload.permissions },
+        body: { complianceRole: payload.complianceRole, permissions: payload.permissions, mfaRequired: payload.mfaRequired },
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: USERS_KEY });
       queryClient.invalidateQueries({ queryKey: ["compliance", "access", "me"] });
     },
+  });
+}
+
+export function useDeleteFirmUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiRequest<{ message: string }>(`${BASE}/users/${encodeURIComponent(id)}`, { method: "DELETE" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: USERS_KEY }),
+  });
+}
+
+export function useResetFirmUserMfa() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiRequest<{ user: FirmUser }>(`${BASE}/users/${encodeURIComponent(id)}/mfa/reset`, { method: "POST" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: USERS_KEY }),
   });
 }
 

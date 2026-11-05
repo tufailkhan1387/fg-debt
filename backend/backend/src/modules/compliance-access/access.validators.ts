@@ -21,6 +21,7 @@ export const createFirmUserSchema = z.object({
 export const updateFirmUserSchema = z.object({
   complianceRole: complianceRoleSchema.nullable().optional(),
   permissions: permissionsSchema.optional(),
+  mfaRequired: z.boolean().optional(),
 });
 
 export const listLogQuerySchema = z.object({

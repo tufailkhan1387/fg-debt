@@ -7,6 +7,7 @@ import {
   approveVersionSchema,
   archiveSchema,
   createPolicySchema,
+  editTextSchema,
   newVersionSchema,
   rejectVersionSchema,
   updatePolicySchema,
@@ -76,6 +77,22 @@ export const policyLibraryController = {
     const { changeSummary } = parse(newVersionSchema, req.body);
     const policy = await policyLibraryService.addVersion(idParam(req.params.id), uploadedFile(req), changeSummary, actorOf(req));
     res.status(201).json({ success: true, data: { policy } });
+  }),
+
+  getText: handle(async (req, res) => {
+    const data = await policyLibraryService.editableText(idParam(req.params.id), actorOf(req));
+    res.json({ success: true, data });
+  }),
+
+  saveText: handle(async (req, res) => {
+    const { text, changeSummary } = parse(editTextSchema, req.body);
+    const policy = await policyLibraryService.saveEditedText(idParam(req.params.id), text, changeSummary, actorOf(req));
+    res.status(201).json({ success: true, data: { policy } });
+  }),
+
+  remove: handle(async (req, res) => {
+    await policyLibraryService.remove(idParam(req.params.id), actorOf(req));
+    res.json({ success: true, data: { message: "Policy deleted." } });
   }),
 
   approve: handle(async (req, res) => {

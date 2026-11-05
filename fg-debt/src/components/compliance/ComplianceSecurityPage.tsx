@@ -93,7 +93,12 @@ export function ComplianceSecurityPage() {
             )}
           </div>
 
-          {user.mfaEnabled ? (
+          {user.mfaEnabled && user.mfaRequired ? (
+            <p className="text-sm text-muted-foreground">
+              Your firm requires two-factor sign-in for your account, so it cannot be turned off here. If you lose your
+              phone, ask a Principal to reset it.
+            </p>
+          ) : user.mfaEnabled ? (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">To turn it off, enter a current code from your app.</p>
               <CodeInput value={code} onChange={setCode} />

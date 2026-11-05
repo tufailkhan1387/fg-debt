@@ -1,6 +1,16 @@
 import { useState } from "react";
-import { Loader2, ShieldCheck, ShieldOff, UserPlus } from "lucide-react";
+import { Loader2, RotateCcw, ShieldCheck, ShieldOff, Trash2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,15 +24,18 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { SolicitorDataLoading } from "@/components/solicitor/SolicitorDataStates";
 import { PrincipalGate } from "@/components/compliance/PrincipalGate";
 import { ApiError } from "@/lib/api";
-import type { ComplianceRole } from "@/lib/auth";
+import { getCurrentUser, type ComplianceRole } from "@/lib/auth";
 import {
   useCreateFirmUser,
+  useDeleteFirmUser,
   useFirmUsers,
+  useResetFirmUserMfa,
   useUpdateFirmUser,
   type AccessLevel,
   type FirmUser,
@@ -56,14 +69,42 @@ export function ComplianceUsersPage() {
 function UsersAndAccess() {
   const { data, isLoading, isError } = useFirmUsers();
   const updateUser = useUpdateFirmUser();
+  const deleteUser = useDeleteFirmUser();
+  const resetMfa = useResetFirmUserMfa();
   const [addOpen, setAddOpen] = useState(false);
+  const [confirm, setConfirm] = useState<{ kind: "delete" | "resetMfa"; user: FirmUser } | null>(null);
+  const currentUserId = getCurrentUser().id;
 
   if (isLoading) return <SolicitorDataLoading label="Loading users…" />;
   if (isError || !data) {
     return <p className="py-12 text-center text-sm text-muted-foreground">Could not load users.</p>;
   }
 
-  const save = (user: FirmUser, change: { complianceRole?: ComplianceRole | null; permissions?: Record<string, AccessLevel> }) => {
+  const runConfirmed = () => {
+    if (!confirm) return;
+    const { kind, user } = confirm;
+    const mutation = kind === "delete" ? deleteUser : resetMfa;
+    mutation.mutate(user.id, {
+      onSuccess: () => {
+        toast.success(
+          kind === "delete" ? `${user.name} removed.` : `Two-factor reset for ${user.name}.`,
+          kind === "resetMfa" && user.mfaRequired
+            ? { description: "They will set it up again at their next sign-in." }
+            : undefined,
+        );
+        setConfirm(null);
+      },
+      onError: (error) =>
+        toast.error(kind === "delete" ? "Could not remove user" : "Could not reset two-factor", {
+          description: errorMessage(error, "Please try again."),
+        }),
+    });
+  };
+
+  const save = (
+    user: FirmUser,
+    change: { complianceRole?: ComplianceRole | null; permissions?: Record<string, AccessLevel>; mfaRequired?: boolean },
+  ) => {
     updateUser.mutate(
       { id: user.id, ...change },
       {
@@ -109,19 +150,58 @@ function UsersAndAccess() {
                 return (
                   <TableRow key={user.id} className="text-xs">
                     <TableCell>
-                      <div className="font-semibold">{user.name}</div>
-                      <div className="text-muted-foreground">{user.email}</div>
+                      <div className="flex items-start gap-1">
+                        <div className="min-w-0">
+                          <div className="font-semibold">{user.name}</div>
+                          <div className="text-muted-foreground">{user.email}</div>
+                        </div>
+                        {user.id !== currentUserId && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="size-7 shrink-0 text-muted-foreground hover:text-destructive"
+                            title="Remove user"
+                            aria-label={`Remove ${user.name}`}
+                            onClick={() => setConfirm({ kind: "delete", user })}
+                          >
+                            <Trash2 className="size-3.5" />
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
-                    <TableCell>
-                      {user.mfaEnabled ? (
-                        <Badge variant="secondary" className="gap-1">
-                          <ShieldCheck className="size-3" /> On
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="gap-1 text-muted-foreground">
-                          <ShieldOff className="size-3" /> Off
-                        </Badge>
-                      )}
+                    <TableCell className="min-w-[9rem]">
+                      <div className="flex items-center gap-1.5">
+                        {user.mfaEnabled ? (
+                          <Badge variant="secondary" className="gap-1">
+                            <ShieldCheck className="size-3" /> On
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="gap-1 text-muted-foreground">
+                            <ShieldOff className="size-3" /> {user.mfaRequired ? "Pending" : "Off"}
+                          </Badge>
+                        )}
+                        {user.mfaEnabled && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="size-7"
+                            title="Reset two-factor (e.g. lost phone)"
+                            aria-label={`Reset two-factor for ${user.name}`}
+                            onClick={() => setConfirm({ kind: "resetMfa", user })}
+                          >
+                            <RotateCcw className="size-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                      <label className="mt-1.5 flex items-center gap-1.5 text-muted-foreground">
+                        <Switch
+                          checked={user.mfaRequired}
+                          disabled={updateUser.isPending}
+                          onCheckedChange={(checked) => save(user, { mfaRequired: checked })}
+                          aria-label={`Require two-factor for ${user.name}`}
+                        />
+                        Required
+                      </label>
                     </TableCell>
                     <TableCell className="min-w-[10rem]">
                       <Select
@@ -181,9 +261,43 @@ function UsersAndAccess() {
 
       <p className="text-xs text-muted-foreground">
         Principal: full access, manages users. Staff: access per area as set here. Viewer: read-only, never edit.
+        Two-factor "Required": the user must set up an authenticator app at their next sign-in and cannot turn it off.
       </p>
 
       <AddUserDialog open={addOpen} onOpenChange={setAddOpen} />
+
+      <AlertDialog open={confirm !== null} onOpenChange={(open) => !open && setConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirm?.kind === "delete" ? `Remove ${confirm.user.name}?` : `Reset two-factor for ${confirm?.user.name}?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirm?.kind === "delete"
+                ? "Their account and access rights are deleted and they can no longer sign in. Entries in the access log are kept. This cannot be undone."
+                : confirm?.user.mfaRequired
+                  ? "Their current authenticator stops working. Because two-factor is required, they will set it up again at their next sign-in."
+                  : "Their current authenticator stops working and two-factor is turned off for their account."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className={
+                confirm?.kind === "delete" ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : undefined
+              }
+              disabled={deleteUser.isPending || resetMfa.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                runConfirmed();
+              }}
+            >
+              {(deleteUser.isPending || resetMfa.isPending) && <Loader2 className="size-4 animate-spin" />}
+              {confirm?.kind === "delete" ? "Remove user" : "Reset two-factor"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

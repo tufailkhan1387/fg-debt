@@ -20,9 +20,13 @@ policyLibraryRouter.post("/:id/acknowledge", authenticate, canView, c.acknowledg
 policyLibraryRouter.post("/", authenticate, canEdit, upload, c.create);
 policyLibraryRouter.patch("/:id", authenticate, canEdit, c.update);
 policyLibraryRouter.post("/:id/versions", authenticate, canEdit, upload, c.addVersion);
+// Edit the wording in the app: read the text of the version in force, save the edit as a new version for approval.
+policyLibraryRouter.get("/:id/text", authenticate, canEdit, c.getText);
+policyLibraryRouter.post("/:id/text", authenticate, canEdit, c.saveText);
 
 // Approval decisions and review sign-off belong to the Principal (the service checks again).
 policyLibraryRouter.post("/versions/:versionId/approve", authenticate, principal, c.approve);
 policyLibraryRouter.post("/versions/:versionId/reject", authenticate, principal, c.reject);
 policyLibraryRouter.post("/:id/review", authenticate, principal, c.markReviewed);
 policyLibraryRouter.post("/:id/archive", authenticate, principal, c.setArchived);
+policyLibraryRouter.delete("/:id", authenticate, principal, c.remove);

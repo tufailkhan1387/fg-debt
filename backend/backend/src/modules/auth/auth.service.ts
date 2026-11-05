@@ -40,6 +40,7 @@ function toPublicUser(row: UserRow): PublicUser {
     ...(row.sra_number ? { sraNumber: row.sra_number } : {}),
     ...(row.compliance_role ? { complianceRole: row.compliance_role } : {}),
     mfaEnabled: row.mfa_enabled,
+    mfaRequired: row.mfa_required,
   };
 }
 
@@ -77,6 +78,29 @@ function signMfaToken(user: UserRow, rememberMe: boolean): string {
     rememberMe,
   };
   return jwt.sign(payload, env.jwtSecret, { expiresIn: `${MFA_TOKEN_MINUTES}m` } as SignOptions);
+}
+
+/** Reads the short-lived token issued between password and two-factor step. */
+function verifyMfaToken(mfaToken: string): AuthTokenPayload & { rememberMe?: boolean } {
+  let payload: AuthTokenPayload & { rememberMe?: boolean };
+  try {
+    payload = jwt.verify(mfaToken, env.jwtSecret) as typeof payload;
+  } catch {
+    throw new AppError("Your sign-in attempt has expired. Please sign in again.", 401, "MFA_TOKEN_EXPIRED");
+  }
+  if (payload.purpose !== "mfa") {
+    throw new AppError("Invalid sign-in attempt.", 401, "INVALID_TOKEN");
+  }
+  return payload;
+}
+
+async function storeNewTotpSecret(user: UserRow): Promise<{ secret: string; otpauthUrl: string }> {
+  const secret = generateTotpSecret();
+  await query("UPDATE users SET mfa_secret_enc = $1, updated_at = NOW() WHERE id = $2", [
+    encryptSecret(secret),
+    user.id,
+  ]);
+  return { secret, otpauthUrl: totpUri(secret, user.email) };
 }
 
 function userTotpSecret(user: UserRow): string {
@@ -179,29 +203,49 @@ export const authService = {
     if (user.mfa_enabled) {
       return { mfaRequired: true, mfaToken: signMfaToken(user, Boolean(input.rememberMe)) };
     }
+    if (user.mfa_required) {
+      return {
+        mfaRequired: true,
+        mfaSetupRequired: true,
+        mfaToken: signMfaToken(user, Boolean(input.rememberMe)),
+      };
+    }
 
     await logFirmAuthEvent(user, "auth.login", ip);
     return { user: toPublicUser(user), token: signToken(user, Boolean(input.rememberMe)) };
   },
 
-  async verifyMfaLogin(input: MfaVerifyInput, ip?: string | null): Promise<AuthResult> {
-    let payload: AuthTokenPayload & { rememberMe?: boolean };
-    try {
-      payload = jwt.verify(input.mfaToken, env.jwtSecret) as typeof payload;
-    } catch {
-      throw new AppError("Your sign-in attempt has expired. Please sign in again.", 401, "MFA_TOKEN_EXPIRED");
-    }
-    if (payload.purpose !== "mfa") {
+  /** Sign-in step for a user the Principal requires to use two-factor but who has not set it up yet. */
+  async setupMfaAtLogin(mfaToken: string): Promise<{ secret: string; otpauthUrl: string }> {
+    const payload = verifyMfaToken(mfaToken);
+    const user = await findUserById(payload.sub);
+    if (!user || user.mfa_enabled || !user.mfa_required) {
       throw new AppError("Invalid sign-in attempt.", 401, "INVALID_TOKEN");
     }
+    return storeNewTotpSecret(user);
+  },
 
-    const user = await findUserById(payload.sub);
-    if (!user || !user.mfa_enabled) {
+  async verifyMfaLogin(input: MfaVerifyInput, ip?: string | null): Promise<AuthResult> {
+    const payload = verifyMfaToken(input.mfaToken);
+
+    let user = await findUserById(payload.sub);
+    // Either a normal two-factor sign-in, or finishing the set-up the Principal required.
+    const enrolling = Boolean(user && !user.mfa_enabled && user.mfa_required && user.mfa_secret_enc);
+    if (!user || (!user.mfa_enabled && !enrolling)) {
       throw new AppError("Invalid sign-in attempt.", 401, "INVALID_TOKEN");
     }
     if (!verifyTotp(userTotpSecret(user), input.code)) {
       await logFirmAuthEvent(user, "auth.mfa_failed", ip);
       throw new AppError(INVALID_CODE_MESSAGE, 401, "INVALID_MFA_CODE");
+    }
+
+    if (enrolling) {
+      const result = await query<UserRow>(
+        "UPDATE users SET mfa_enabled = TRUE, updated_at = NOW() WHERE id = $1 RETURNING *",
+        [user.id],
+      );
+      user = result.rows[0];
+      await logFirmAuthEvent(user, "auth.mfa_enabled", ip);
     }
 
     await logFirmAuthEvent(user, "auth.login", ip);
@@ -217,12 +261,7 @@ export const authService = {
     if (user.mfa_enabled) {
       throw new AppError("Two-factor authentication is already on.", 409, "MFA_ALREADY_ENABLED");
     }
-    const secret = generateTotpSecret();
-    await query("UPDATE users SET mfa_secret_enc = $1, updated_at = NOW() WHERE id = $2", [
-      encryptSecret(secret),
-      user.id,
-    ]);
-    return { secret, otpauthUrl: totpUri(secret, user.email) };
+    return storeNewTotpSecret(user);
   },
 
   async enableMfa(userId: string, code: string, ip?: string | null): Promise<PublicUser> {
@@ -248,6 +287,13 @@ export const authService = {
     }
     if (!user.mfa_enabled) {
       throw new AppError("Two-factor authentication is not on.", 400, "MFA_NOT_ENABLED");
+    }
+    if (user.mfa_required) {
+      throw new AppError(
+        "Your firm requires two-factor sign-in for your account, so it cannot be turned off. Ask a Principal if you need it reset.",
+        403,
+        "MFA_REQUIRED_BY_FIRM",
+      );
     }
     if (!verifyTotp(userTotpSecret(user), code)) {
       throw new AppError(INVALID_CODE_MESSAGE, 400, "INVALID_MFA_CODE");

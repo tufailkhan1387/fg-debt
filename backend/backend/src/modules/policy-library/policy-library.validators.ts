@@ -41,6 +41,11 @@ export const rejectVersionSchema = z.object({
   reason: z.string().trim().min(1, "Give a reason so the author knows what to change.").max(2000),
 });
 
+export const editTextSchema = z.object({
+  text: z.string().trim().min(1, "The policy cannot be empty.").max(500_000),
+  changeSummary: z.string().trim().min(1, "Say briefly what changed in this version.").max(2000),
+});
+
 export const archiveSchema = z.object({ archived: z.boolean() });
 
 export type CreatePolicyInput = z.infer<typeof createPolicySchema>;

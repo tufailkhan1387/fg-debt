@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
   Archive,
   ArchiveRestore,
@@ -12,9 +12,21 @@ import {
   Loader2,
   Lock,
   Pencil,
+  PenLine,
+  Trash2,
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -40,10 +52,13 @@ import {
   useAddPolicyVersion,
   useApproveVersion,
   useArchivePolicy,
+  useDeletePolicy,
   usePolicies,
   usePolicy,
   usePolicyAction,
+  usePolicyText,
   useRejectVersion,
+  useSavePolicyText,
   useUpdatePolicy,
   type PolicyDetail,
   type PolicyReviewFrequency,
@@ -69,7 +84,7 @@ async function download(version: PolicyVersion) {
 export function PolicyDetailPage({ policyId }: { policyId: string }) {
   const me = useComplianceMe();
   const { data: policy, isLoading, isError, error } = usePolicy(policyId);
-  const [dialog, setDialog] = useState<"version" | "edit" | "reject" | null>(null);
+  const [dialog, setDialog] = useState<"version" | "edit" | "wording" | "reject" | "delete" | null>(null);
 
   const acknowledge = usePolicyAction("acknowledge");
   const review = usePolicyAction("review");
@@ -117,6 +132,14 @@ export function PolicyDetailPage({ policyId }: { policyId: string }) {
               <Button variant="outline" onClick={() => setDialog("edit")}>
                 <Pencil className="size-4" /> Edit details
               </Button>
+              <Button
+                variant="outline"
+                onClick={() => setDialog("wording")}
+                disabled={!!policy.pendingVersion || policy.versions.length === 0}
+                title={policy.pendingVersion ? "A version is already waiting for approval" : undefined}
+              >
+                <PenLine className="size-4" /> Edit wording
+              </Button>
               <Button onClick={() => setDialog("version")} disabled={!!policy.pendingVersion} title={policy.pendingVersion ? "A version is already waiting for approval" : undefined}>
                 <FileUp className="size-4" /> Upload new version
               </Button>
@@ -152,6 +175,16 @@ export function PolicyDetailPage({ policyId }: { policyId: string }) {
             >
               {policy.archived ? <ArchiveRestore className="size-4" /> : <Archive className="size-4" />}
               {policy.archived ? "Restore" : "Archive"}
+            </Button>
+          )}
+          {isPrincipal && (
+            <Button
+              variant="ghost"
+              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+              disabled={busy}
+              onClick={() => setDialog("delete")}
+            >
+              <Trash2 className="size-4" /> Delete
             </Button>
           )}
         </div>
@@ -289,6 +322,8 @@ export function PolicyDetailPage({ policyId }: { policyId: string }) {
 
       {dialog === "version" && <NewVersionDialog policy={policy} onClose={() => setDialog(null)} />}
       {dialog === "edit" && <EditDetailsDialog policy={policy} onClose={() => setDialog(null)} />}
+      {dialog === "wording" && <EditWordingDialog policy={policy} onClose={() => setDialog(null)} />}
+      {dialog === "delete" && <DeletePolicyDialog policy={policy} onClose={() => setDialog(null)} />}
       {dialog === "reject" && policy.pendingVersion && (
         <RejectDialog version={policy.pendingVersion} onClose={() => setDialog(null)} />
       )}
@@ -504,6 +539,129 @@ function EditDetailsDialog({ policy, onClose }: { policy: PolicyDetail; onClose:
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function EditWordingDialog({ policy, onClose }: { policy: PolicyDetail; onClose: () => void }) {
+  const source = usePolicyText(policy.id, true);
+  const save = useSavePolicyText();
+  const [text, setText] = useState<string | null>(null);
+  const [changeSummary, setChangeSummary] = useState("");
+  const value = text ?? source.data?.text ?? "";
+  const changed = text !== null && text !== source.data?.text;
+
+  const submit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    save.mutate(
+      { id: policy.id, text: value, changeSummary },
+      {
+        onSuccess: () => {
+          toast.success("Edited wording submitted for the Principal's approval.");
+          onClose();
+        },
+        onError: (error) => toast.error("Could not save the edit", { description: errorMessage(error) }),
+      },
+    );
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Edit wording</DialogTitle>
+          <DialogDescription>
+            {source.data
+              ? `Editing the text of version ${source.data.versionNumber} (${source.data.fileName}). Saving creates a new Word version that takes effect once the Principal approves it.`
+              : source.isError
+                ? "The text of this document could not be opened for editing."
+                : "Loading the policy text…"}
+          </DialogDescription>
+        </DialogHeader>
+        {source.isLoading ? (
+          <SolicitorDataLoading label="Reading the document…" />
+        ) : source.isError ? (
+          <p className="py-6 text-sm text-destructive">
+            {errorMessage(source.error)} You can still download the document, edit it in Word and use "Upload new version".
+          </p>
+        ) : (
+          <form onSubmit={submit} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="policyText">Policy text</Label>
+              <Textarea
+                id="policyText"
+                rows={20}
+                value={value}
+                onChange={(e) => setText(e.target.value)}
+                className="font-mono text-[0.8rem] leading-relaxed"
+              />
+              <p className="text-xs text-muted-foreground">
+                Start a line with <code># </code> for a heading, <code>## </code> for a sub-heading and <code>- </code> for a
+                bullet point. Each other line is a paragraph. The saved Word file uses simple formatting; if the original has
+                logos, tables or special layout, edit it in Word and upload it instead.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="wordingSummary">What changed?</Label>
+              <Textarea
+                id="wordingSummary"
+                rows={2}
+                value={changeSummary}
+                onChange={(e) => setChangeSummary(e.target.value)}
+                required
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+              <Button type="submit" disabled={save.isPending || !changed || !changeSummary.trim() || !value.trim()}>
+                {save.isPending ? <Loader2 className="size-4 animate-spin" /> : <FileUp className="size-4" />}
+                Submit for approval
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeletePolicyDialog({ policy, onClose }: { policy: PolicyDetail; onClose: () => void }) {
+  const remove = useDeletePolicy();
+  const navigate = useNavigate();
+
+  return (
+    <AlertDialog open onOpenChange={(open) => !open && onClose()}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete "{policy.title}"?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This permanently deletes the policy, all {policy.versions.length} version
+            {policy.versions.length === 1 ? "" : "s"} and their documents, and staff acknowledgements. The access log keeps a
+            record that it was deleted. To keep the history but take it out of use, archive it instead.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            disabled={remove.isPending}
+            onClick={(e) => {
+              e.preventDefault();
+              remove.mutate(policy.id, {
+                onSuccess: () => {
+                  toast.success("Policy deleted.");
+                  onClose();
+                  navigate({ to: "/solicitor/fg-compliance/policies" });
+                },
+                onError: (error) => toast.error("Could not delete the policy", { description: errorMessage(error) }),
+              });
+            }}
+          >
+            {remove.isPending && <Loader2 className="size-4 animate-spin" />}
+            Delete policy
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 

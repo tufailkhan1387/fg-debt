@@ -18,6 +18,7 @@ export interface UserProfile {
   sraNumber?: string;
   complianceRole?: ComplianceRole;
   mfaEnabled?: boolean;
+  mfaRequired?: boolean;
 }
 
 export const DEMO_USERS: Record<UserRole, UserProfile> = {

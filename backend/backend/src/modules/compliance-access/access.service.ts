@@ -40,6 +40,7 @@ function toFirmUser(row: UserRow, permissionRows: PermissionRow[]): FirmUser {
     title: row.title,
     complianceRole: row.compliance_role,
     mfaEnabled: row.mfa_enabled,
+    mfaRequired: row.mfa_required,
     permissions: effectivePermissions(
       row.compliance_role,
       permissionRows.filter((p) => p.user_id === row.id),
@@ -155,6 +156,9 @@ export const accessService = {
     if (input.permissions) {
       await savePermissions(userId, input.permissions);
     }
+    if (input.mfaRequired !== undefined && input.mfaRequired !== before.mfa_required) {
+      await query("UPDATE users SET mfa_required = $1, updated_at = NOW() WHERE id = $2", [input.mfaRequired, userId]);
+    }
 
     const after = await getFirmUserRow(userId);
     const updated = toFirmUser(after, await permissionRowsFor([userId]));
@@ -166,13 +170,56 @@ export const accessService = {
       entityType: "user",
       entityId: after.email,
       details: {
-        before: { complianceRole: before.compliance_role, permissions: beforePermissions },
-        after: { complianceRole: updated.complianceRole, permissions: updated.permissions },
+        before: { complianceRole: before.compliance_role, permissions: beforePermissions, mfaRequired: before.mfa_required },
+        after: { complianceRole: updated.complianceRole, permissions: updated.permissions, mfaRequired: updated.mfaRequired },
       },
       ip: actor.ip,
     });
 
     return updated;
+  },
+
+  /** Removes a firm user's account. Their access log entries are kept (the log has no FK and is append-only). */
+  async deleteUser(userId: string, actor: Actor): Promise<void> {
+    if (userId === actor.userId) {
+      throw new AppError("You cannot remove your own account.", 400, "CANNOT_DELETE_SELF");
+    }
+    const user = await getFirmUserRow(userId);
+    if (user.compliance_role === "principal" && (await countPrincipals()) <= 1) {
+      throw new AppError("The firm must keep at least one Principal.", 400, "LAST_PRINCIPAL");
+    }
+    await query("DELETE FROM users WHERE id = $1", [userId]);
+
+    await recordAccessLog({
+      userId: actor.userId,
+      userEmail: actor.email,
+      action: "access.user_deleted",
+      entityType: "user",
+      entityId: user.email,
+      details: { name: `${user.first_name} ${user.last_name}`.trim(), complianceRole: user.compliance_role },
+      ip: actor.ip,
+    });
+  },
+
+  /** Clears a user's authenticator (e.g. lost phone). If two-factor is required they set it up again at next sign-in. */
+  async resetUserMfa(userId: string, actor: Actor): Promise<FirmUser> {
+    const user = await getFirmUserRow(userId);
+    await query(
+      "UPDATE users SET mfa_enabled = FALSE, mfa_secret_enc = NULL, updated_at = NOW() WHERE id = $1",
+      [userId],
+    );
+
+    await recordAccessLog({
+      userId: actor.userId,
+      userEmail: actor.email,
+      action: "access.user_mfa_reset",
+      entityType: "user",
+      entityId: user.email,
+      details: { mfaRequired: user.mfa_required },
+      ip: actor.ip,
+    });
+
+    return toFirmUser(await getFirmUserRow(userId), await permissionRowsFor([userId]));
   },
 
   async listLog(filters: { limit: number; action?: string }): Promise<AccessLogEntry[]> {
