@@ -10,6 +10,7 @@ import {
   Lock,
   Plus,
   ShieldAlert,
+  Trash2,
   Upload,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -45,6 +46,7 @@ import {
   STATUS_LABELS,
   useApproveRisk,
   useCreateRisk,
+  useDeleteRisk,
   useImportRisks,
   useMarkRiskReviewed,
   useRiskRegister,
@@ -97,6 +99,7 @@ export function RiskRegisterPage() {
   const [editing, setEditing] = useState<Risk | "new" | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [deleting, setDeleting] = useState<Risk | null>(null);
 
   const canEdit = me.data?.permissions?.["risks"] === "edit";
   const isPrincipal = me.data?.role === "principal";
@@ -208,12 +211,13 @@ export function RiskRegisterPage() {
                 <TableHead className="text-xs font-semibold">Next review</TableHead>
                 <TableHead className="text-xs font-semibold">Status</TableHead>
                 <TableHead className="text-xs font-semibold">Approval</TableHead>
+                {isPrincipal && <TableHead className="sticky right-0 bg-card text-xs font-semibold" />}
               </TableRow>
             </TableHeader>
             <TableBody>
               {risks.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={isPrincipal ? 10 : 9} className="py-10 text-center text-sm text-muted-foreground">
                     {register.data?.risks.length
                       ? "No risks match this view."
                       : "No risks yet. Add one, or import the Risk Register sheet from the Master Register workbook."}
@@ -250,10 +254,27 @@ export function RiskRegisterPage() {
                         </Badge>
                       ) : (
                         <Badge variant="outline" className="gap-1 border-amber-500/40 text-amber-700 dark:text-amber-300">
-                          Pending
+                          Awaiting approval
                         </Badge>
                       )}
                     </TableCell>
+                    {isPrincipal && (
+                      <TableCell className="sticky right-0 bg-card text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 text-muted-foreground hover:text-rose-600"
+                          aria-label={`Delete risk ${risk.ref}`}
+                          title="Delete risk"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleting(risk);
+                          }}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))
               )}
@@ -272,7 +293,45 @@ export function RiskRegisterPage() {
         />
       )}
       <ImportDialog open={importOpen} onOpenChange={setImportOpen} />
+      {deleting && <DeleteRiskDialog risk={deleting} onCancel={() => setDeleting(null)} onDeleted={() => setDeleting(null)} />}
     </div>
+  );
+}
+
+function DeleteRiskDialog({ risk, onCancel, onDeleted }: { risk: Risk; onCancel: () => void; onDeleted: () => void }) {
+  const deleteRisk = useDeleteRisk();
+  return (
+    <Dialog open onOpenChange={(open) => !open && onCancel()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Delete risk {risk.ref}?</DialogTitle>
+          <DialogDescription>
+            "{risk.name}" will be removed from the Risk Register. This cannot be undone; the deletion is recorded in the
+            access log. To keep the history instead, set the risk's status to Closed.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={deleteRisk.isPending}
+            onClick={() =>
+              deleteRisk.mutate(risk.id, {
+                onSuccess: () => {
+                  toast.success(`Risk ${risk.ref} deleted.`);
+                  onDeleted();
+                },
+                onError: (error) => toast.error("Could not delete the risk", { description: errorMessage(error) }),
+              })
+            }
+          >
+            {deleteRisk.isPending ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />} Delete risk
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -308,6 +367,7 @@ function RiskDialog({
   const approveRisk = useApproveRisk();
   const markReviewed = useMarkRiskReviewed();
   const [form, setForm] = useState<RiskInput>(() => (risk ? { ...risk, ref: risk.ref } : EMPTY_FORM));
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const readOnly = !canEdit;
   const level = riskLevelFor(form.likelihood, form.impact);
@@ -326,8 +386,11 @@ function RiskDialog({
 
   const save = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    // Only the Principal chooses the approval status; for anyone else the server decides.
+    const { approvalStatus: _approval, ...rest } = form;
+    const body: RiskInput = isPrincipal ? form : rest;
     if (risk) {
-      const { ref: _ref, ...changes } = form;
+      const { ref: _ref, ...changes } = body;
       updateRisk.mutate(
         { id: risk.id, ...changes },
         {
@@ -336,8 +399,10 @@ function RiskDialog({
         },
       );
     } else {
-      createRisk.mutate(form, {
-        onSuccess: done(isPrincipal ? "Risk added." : "Risk added and sent to the Principal for approval."),
+      createRisk.mutate(body, {
+        onSuccess: done(
+          isPrincipal && body.approvalStatus !== "pending" ? "Risk added." : "Risk added and marked as awaiting approval.",
+        ),
         onError: failed("Could not add the risk"),
       });
     }
@@ -482,6 +547,25 @@ function RiskDialog({
               <Label htmlFor="furtherAction">Further action required</Label>
               <Textarea id="furtherAction" rows={2} value={form.furtherAction} onChange={(e) => set("furtherAction", e.target.value)} />
             </div>
+
+            {isPrincipal && (
+              <div className="space-y-1.5 sm:max-w-xs">
+                <Label>Approval</Label>
+                <Select
+                  value={form.approvalStatus ?? "approved"}
+                  onValueChange={(v) => set("approvalStatus", v as NonNullable<RiskInput["approvalStatus"]>)}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="approved">Approved</SelectItem>
+                    <SelectItem value="pending">Awaiting approval</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[0.68rem] text-muted-foreground">
+                  Choose "Awaiting approval" to keep the rating open until you have signed it off.
+                </p>
+              </div>
+            )}
           </fieldset>
 
           {ratingChanged && !isPrincipal && (
@@ -491,7 +575,12 @@ function RiskDialog({
           )}
 
           <DialogFooter className="gap-2 sm:justify-between">
-            <div>
+            <div className="flex flex-wrap gap-2">
+              {risk && isPrincipal && (
+                <Button type="button" variant="outline" disabled={busy} onClick={() => setDeleteOpen(true)}>
+                  <Trash2 className="size-4" /> Delete
+                </Button>
+              )}
               {risk && canEdit && (
                 <Button
                   type="button"
@@ -521,6 +610,9 @@ function RiskDialog({
             </div>
           </DialogFooter>
         </form>
+        {risk && deleteOpen && (
+          <DeleteRiskDialog risk={risk} onCancel={() => setDeleteOpen(false)} onDeleted={onClose} />
+        )}
       </DialogContent>
     </Dialog>
   );

@@ -75,7 +75,7 @@ export const riskRegisterService = {
     if ((await existingRefs()).has(ref.toUpperCase())) {
       throw new AppError(`A risk with ID ${ref} already exists.`, 409, "RISK_REF_IN_USE");
     }
-    const approved = actor.role === "principal";
+    const approved = actor.role === "principal" && input.approvalStatus !== "pending";
     const result = await query<RiskRow>(
       `INSERT INTO compliance_risks (
          ref, name, category, likelihood, impact, risk_level, controls, residual_level, further_action,
@@ -116,7 +116,9 @@ export const riskRegisterService = {
     const frequencyChanged = merged.reviewFrequency !== before.reviewFrequency;
     let approval = { status: before.approvalStatus, by: before.approvedBy, at: before.approvedAt };
     if (actor.role === "principal") {
-      if (ratingChanged || before.approvalStatus === "pending") {
+      if (input.approvalStatus === "pending") {
+        approval = { status: "pending", by: null, at: null };
+      } else if (ratingChanged || before.approvalStatus === "pending") {
         approval = { status: "approved", by: actor.email, at: new Date().toISOString() };
       }
     } else if (ratingChanged) {
@@ -181,6 +183,16 @@ export const riskRegisterService = {
       residualLevel: risk.residualLevel,
     });
     return risk;
+  },
+
+  /** Principal only: deletes a risk (e.g. added by mistake or no longer relevant). The deletion is logged. */
+  async remove(id: string, actor: RiskActor): Promise<void> {
+    if (actor.role !== "principal") {
+      throw new AppError("Only the Principal can delete risks.", 403, "FORBIDDEN");
+    }
+    const risk = toRisk(await getRow(id));
+    await query("DELETE FROM compliance_risks WHERE id = $1", [id]);
+    await log(actor, "risk.deleted", risk.ref, { risk });
   },
 
   /** Records that the risk was reviewed today and schedules the next review from its frequency. */

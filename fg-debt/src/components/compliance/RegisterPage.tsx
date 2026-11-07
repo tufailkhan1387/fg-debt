@@ -59,6 +59,7 @@ export function RegisterPage({ registerKey }: { registerKey: string }) {
   const [nilOpen, setNilOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [deleting, setDeleting] = useState<RegisterEntry | null>(null);
 
   const def = registers.data?.catalog.find((r) => r.key === registerKey);
   const canEdit = me.data?.permissions?.["registers"] === "edit";
@@ -150,6 +151,8 @@ export function RegisterPage({ registerKey }: { registerKey: string }) {
         </div>
       </div>
 
+      {def.scenarios && <ScenarioGuide scenarios={def.scenarios} />}
+
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         {def.status ? (
           <Tabs value={filter} onValueChange={(value) => setFilter(value as Filter)}>
@@ -176,12 +179,13 @@ export function RegisterPage({ registerKey }: { registerKey: string }) {
                     {fieldOf(key)?.label ?? key}
                   </TableHead>
                 ))}
+                {isPrincipal && <TableHead className="sticky right-0 bg-card text-xs font-semibold" />}
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={def.columns.length + 1} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={def.columns.length + (isPrincipal ? 2 : 1)} className="py-10 text-center text-sm text-muted-foreground">
                     {entries.data?.length
                       ? "No entries match this view."
                       : "No entries yet. Add one, record a NIL entry, or import from the Master Register workbook."}
@@ -214,6 +218,23 @@ export function RegisterPage({ registerKey }: { registerKey: string }) {
                         );
                       })
                     )}
+                    {isPrincipal && (
+                      <TableCell className="sticky right-0 bg-card text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 text-muted-foreground hover:text-rose-600"
+                          aria-label={`Delete entry ${entry.ref}`}
+                          title="Delete entry"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleting(entry);
+                          }}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))
               )}
@@ -232,8 +253,83 @@ export function RegisterPage({ registerKey }: { registerKey: string }) {
         />
       )}
       {nilOpen && <NilDialog def={def} onClose={() => setNilOpen(false)} />}
+      {deleting && <DeleteEntryDialog def={def} entry={deleting} onClose={() => setDeleting(null)} />}
       {def.importable && <ImportDialog def={def} open={importOpen} onOpenChange={setImportOpen} />}
     </div>
+  );
+}
+
+/** The scenarios a register's entries refer to, e.g. "Scenario 1" on a BCP test. */
+function ScenarioGuide({ scenarios }: { scenarios: NonNullable<RegisterDef["scenarios"]> }) {
+  return (
+    <Card className="surface-card">
+      <CardContent className="p-0">
+        <details open className="group">
+          <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-foreground">
+            {scenarios.heading}
+            <span className="ml-2 text-xs font-normal text-muted-foreground">
+              — what each scenario number means; record which one you tested under "Scenario tested"
+            </span>
+          </summary>
+          <div className="grid gap-3 border-t border-border px-4 py-4 sm:grid-cols-2 xl:grid-cols-4">
+            {scenarios.items.map((item, i) => (
+              <div key={item.title} className="rounded-lg border border-border bg-muted/30 p-3 text-xs">
+                <p className="font-semibold text-foreground">{item.title}</p>
+                <p className="mt-0.5 text-[0.68rem] font-medium text-muted-foreground">Scenario {i + 1}</p>
+                <p className="mt-2">
+                  <span className="font-semibold">Scenario:</span> {item.scenario}
+                </p>
+                <p className="mt-2 font-semibold">Check:</p>
+                <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted-foreground">
+                  {item.checks.map((check) => (
+                    <li key={check}>{check}</li>
+                  ))}
+                </ul>
+                <p className="mt-2">
+                  <span className="font-semibold">Expected result:</span> {item.expected}
+                </p>
+              </div>
+            ))}
+          </div>
+        </details>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DeleteEntryDialog({ def, entry, onClose }: { def: RegisterDef; entry: RegisterEntry; onClose: () => void }) {
+  const removeEntry = useRemoveEntry();
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Delete {entry.ref}?</DialogTitle>
+          <DialogDescription>
+            This entry will be removed from {def.title}. This cannot be undone; the deletion is recorded in the access log.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={removeEntry.isPending}
+            onClick={() =>
+              removeEntry.mutate(entry.id, {
+                onSuccess: () => {
+                  toast.success(`${entry.ref} deleted.`);
+                  onClose();
+                },
+                onError: (error) => toast.error("Could not delete the entry", { description: errorMessage(error) }),
+              })
+            }
+          >
+            {removeEntry.isPending ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />} Delete
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

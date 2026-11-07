@@ -80,6 +80,8 @@ export interface RiskInput {
   reviewFrequency: ReviewFrequency;
   status: RiskStatus;
   owner: string;
+  /** The Principal can choose this; for anyone else the server decides. */
+  approvalStatus?: "pending" | "approved";
 }
 
 export interface ImportPreviewRow {
@@ -131,6 +133,12 @@ export function useUpdateRisk() {
 export function useApproveRisk() {
   return useRiskMutation((id: string) =>
     apiRequest<{ risk: Risk }>(`${BASE}/${encodeURIComponent(id)}/approve`, { method: "POST" }),
+  );
+}
+
+export function useDeleteRisk() {
+  return useRiskMutation((id: string) =>
+    apiRequest<{ removed: boolean }>(`${BASE}/${encodeURIComponent(id)}`, { method: "DELETE" }),
   );
 }
 

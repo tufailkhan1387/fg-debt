@@ -67,6 +67,15 @@ export const riskRegisterController = {
     }
   },
 
+  async remove(req: Request, res: Response, next: NextFunction) {
+    try {
+      await riskRegisterService.remove(idParam(req.params.id), actorOf(req));
+      res.json({ success: true, data: { removed: true } });
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async markReviewed(req: Request, res: Response, next: NextFunction) {
     try {
       const risk = await riskRegisterService.markReviewed(idParam(req.params.id), actorOf(req));

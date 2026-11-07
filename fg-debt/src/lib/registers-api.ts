@@ -25,6 +25,8 @@ export interface RegisterDef {
   dateField: string | null;
   status: { field: string; closed: string[] } | null;
   due: { field: string; label: string } | null;
+  /** The tests/scenarios entries refer to (e.g. the BCP "Typical Tests"), shown above the register. */
+  scenarios: { heading: string; items: Array<{ title: string; scenario: string; checks: string[]; expected: string }> } | null;
 }
 
 export interface RegisterSummary {

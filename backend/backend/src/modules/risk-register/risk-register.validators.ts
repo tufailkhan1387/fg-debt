@@ -15,6 +15,8 @@ export const createRiskSchema = z.object({
   reviewFrequency: z.enum(REVIEW_FREQUENCIES),
   status: z.enum(RISK_STATUSES).default("open"),
   owner: text(120).default(""),
+  /** Only the Principal's choice is used; anyone else's change of rating still goes to "pending". */
+  approvalStatus: z.enum(["pending", "approved"]).optional(),
 });
 
 export const updateRiskSchema = createRiskSchema.omit({ ref: true }).partial();

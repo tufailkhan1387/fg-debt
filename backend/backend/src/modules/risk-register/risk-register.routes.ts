@@ -17,5 +17,6 @@ riskRegisterRouter.patch("/:id", authenticate, canEdit, riskRegisterController.u
 riskRegisterRouter.post("/:id/review", authenticate, canEdit, riskRegisterController.markReviewed);
 // Approval is Principal-only; the service enforces it as well.
 riskRegisterRouter.post("/:id/approve", authenticate, requireCompliance("principal"), riskRegisterController.approve);
+riskRegisterRouter.delete("/:id", authenticate, requireCompliance("principal"), riskRegisterController.remove);
 riskRegisterRouter.post("/import/preview", authenticate, canEdit, upload, riskRegisterController.previewImport);
 riskRegisterRouter.post("/import", authenticate, canEdit, upload, riskRegisterController.importWorkbook);

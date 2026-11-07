@@ -190,6 +190,7 @@ export const registersService = {
       importable: !!def.sheets?.length,
       fields: def.fields,
       columns: def.columns,
+      scenarios: def.scenarios ?? null,
       dateField: def.dateField ?? null,
       status: def.status ?? null,
       due: def.due ?? null,

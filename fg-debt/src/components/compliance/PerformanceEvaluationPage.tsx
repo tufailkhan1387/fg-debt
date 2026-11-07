@@ -8,12 +8,13 @@ import { formatDate } from "@/components/compliance/policy-badges";
 import { EVALUATION_ANCHOR } from "@/components/compliance/StaffPage";
 import { ApiError } from "@/lib/api";
 import { useComplianceMe } from "@/lib/compliance-access-api";
-import { useTraining } from "@/lib/training-api";
+import { useAppraisalFormDefinition, useTraining } from "@/lib/training-api";
 
 /** One place to find each person's performance evaluation (Master Register "Performance Evaluation" sheet). Principal only. */
 export function PerformanceEvaluationPage() {
   const me = useComplianceMe();
   const overview = useTraining();
+  const definition = useAppraisalFormDefinition();
 
   if (me.isLoading || overview.isLoading) return <SolicitorDataLoading label="Loading performance evaluations…" />;
   if (me.data?.role !== "principal" || overview.isError || !overview.data) {
@@ -96,6 +97,53 @@ export function PerformanceEvaluationPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {definition.data && (
+        <Card className="surface-card">
+          <CardContent className="space-y-5 p-5">
+            <div>
+              <h2 className="text-base font-semibold text-foreground">What each person is evaluated against</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                The {definition.data.categories.length} categories on the firm's Performance Appraisal form for legal professionals.
+                Rate each one from 1 to 5; ratings of {definition.data.scoresNeedingComment.join(", ")} need a comment.
+              </p>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              {definition.data.categories.map((category, i) => (
+                <div key={category.key} className="rounded-lg border border-border bg-muted/30 p-3 text-xs">
+                  <p className="font-semibold text-foreground">
+                    {i + 1}. {category.title}
+                  </p>
+                  <ul className="mt-1.5 list-disc space-y-0.5 pl-4 text-muted-foreground">
+                    {category.examples.map((example) => (
+                      <li key={example}>{example}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">Rating scale</h3>
+              <div className="mt-2 overflow-x-auto">
+                <Table>
+                  <TableBody>
+                    {definition.data.ratings.map((rating) => (
+                      <TableRow key={rating.score} className="align-top text-xs">
+                        <TableCell className="w-28 whitespace-nowrap font-semibold">
+                          {rating.score} — {rating.label}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{rating.description}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

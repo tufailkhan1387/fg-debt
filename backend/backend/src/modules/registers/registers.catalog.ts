@@ -18,6 +18,14 @@ export interface FieldDef {
   aliases?: Record<string, string>;
 }
 
+/** A test the firm runs, e.g. the "Typical Tests" on the BCP Test sheet. */
+export interface ScenarioGuide {
+  title: string;
+  scenario: string;
+  checks: string[];
+  expected: string;
+}
+
 export interface RegisterDef {
   key: string;
   title: string;
@@ -40,6 +48,8 @@ export interface RegisterDef {
   sensitive?: boolean;
   /** Workbook sheet names this register can be imported from. */
   sheets?: string[];
+  /** Explains the scenarios entries refer to, shown above the register. Wording is the firm's own. */
+  scenarios?: { heading: string; items: ScenarioGuide[] };
 }
 
 const YES_NO = ["Yes", "No"];
@@ -363,7 +373,37 @@ export const REGISTERS: RegisterDef[] = [
     prefix: "BCP",
     sheets: ["BCP Test Record"],
     dateField: "testDate",
-    columns: ["testDate", "testType", "result", "issues", "responsible"],
+    columns: ["testDate", "testType", "scenario", "result", "issues", "correctiveAction", "responsible", "completionDate"],
+    // Verbatim from the "Typical Tests for Frantz Gregory & Co" box on the Master Register's BCP Test sheet.
+    scenarios: {
+      heading: "Typical Tests for Frantz Gregory & Co",
+      items: [
+        {
+          title: "1. Remote Working Test",
+          scenario: "Office inaccessible.",
+          checks: ["Access to email", "Access to client files", "Access to cloud storage", "Ability to communicate with clients"],
+          expected: "Work can continue remotely.",
+        },
+        {
+          title: "2. Backup Recovery Test",
+          scenario: "Loss of electronic file.",
+          checks: ["Ability to restore files from backup", "Recovery times", "Integrity of restored information"],
+          expected: "Files recoverable without significant disruption.",
+        },
+        {
+          title: "3. Communications Test",
+          scenario: "Primary communication channel unavailable.",
+          checks: ["Alternative telephone access", "Mobile phone availability", "Video conferencing capability"],
+          expected: "Clients can still be contacted.",
+        },
+        {
+          title: "4. Cyber Incident Exercise",
+          scenario: "Phishing email or ransomware attack.",
+          checks: ["Incident reporting procedure", "Access restrictions", "Recovery arrangements"],
+          expected: "Incident identified and escalated appropriately.",
+        },
+      ],
+    },
     fields: [
       { key: "testDate", label: "Test date", type: "date", required: true },
       { key: "testType", label: "Test type", type: "select", options: ["Remote working", "Backup recovery", "Communication", "Cyber incident", "Other"] },

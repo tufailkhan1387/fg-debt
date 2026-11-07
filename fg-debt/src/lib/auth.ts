@@ -38,7 +38,7 @@ export const DEMO_USERS: Record<UserRole, UserProfile> = {
     role: "solicitor",
     avatar: "RO",
     title: "Lead Insolvency Solicitor",
-    sraNumber: "SRA-629104",
+    sraNumber: "SRA-817529",
   },
 };
 

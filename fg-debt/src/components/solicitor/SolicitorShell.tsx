@@ -74,7 +74,7 @@ function SolicitorSidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           <span>SRA Regulated Legal Portal</span>
         </div>
         <p className="mt-1 text-[0.68rem] text-sidebar-foreground/70">
-          Solicitor Super Admin • SRA ID: 629104
+          Solicitor Super Admin • SRA ID: 817529
         </p>
       </div>
 
