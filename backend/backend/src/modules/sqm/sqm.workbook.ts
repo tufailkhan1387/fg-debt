@@ -61,6 +61,8 @@ export async function buildImportTemplate(sectionTitles: Map<string, string>): P
     "2. On the 'SQM Requirements' sheet, add one row per requirement, copying the reference and wording from the official SQM standard.",
     "   Section: A–G.  Ref: the requirement reference (e.g. as numbered in the standard).  Requirement: the official wording.",
     "   What it means: optional plain-English note for staff.  Responsible person and Review date: optional.",
+    "   A requirement can run over several rows (e.g. its bullet points): repeat its Ref, or leave Ref blank, on the extra rows.",
+    "   Section only needs filling in on the first row of each section; it is otherwise taken from the Ref (A1.1 is section A).",
     "3. In FG Compliance, open SQM Checklist → Import from Excel and choose this file. Rows are checked before anything is saved.",
     "",
     "Requirements already in the system (same Ref) are left unchanged by an import.",
@@ -148,51 +150,113 @@ export async function parseSqmWorkbook(
   }
 
   const get = (row: ExcelJS.Row, header: string) => (cols.has(header) ? row.getCell(cols.get(header)!).value : null);
-  const seen = new Set<string>();
-  const rows: SqmImportRow[] = [];
+
+  // The official SQM checklist spreads one requirement over several rows (the question, then its bullet
+  // points), repeats the Ref on each, and gives the Section only on its first row. Rows are therefore
+  // grouped by Ref: a blank Section is taken from the Ref (A1.1 → A) or the row above, a blank Ref continues
+  // the requirement above, and rows with a Ref but no wording are spacers.
+  interface Group {
+    rowNumber: number;
+    sectionText: string;
+    section: string | null;
+    ref: string;
+    lines: string[];
+    meaning: string;
+    responsible: string;
+    reviewRaw: ExcelJS.CellValue;
+    issues: string[];
+  }
+  const groups = new Map<string, Group>();
+  const order: Group[] = [];
+  let currentSection: string | null = null;
+  let previous: Group | null = null;
 
   for (let r = headerRow + 1; r <= sheet.rowCount; r++) {
     const row = sheet.getRow(r);
     const sectionText = cellText(get(row, "section"));
     const ref = cellText(get(row, "ref")).replace(/\s+/g, "");
-    const requirement = cellText(get(row, "requirement"));
+    const text = cleanLine(cellText(get(row, "requirement")));
     const meaning = cellText(get(row, "what it means"));
     const responsible = cellText(get(row, "responsible person"));
     const reviewRaw = get(row, "review date");
-    if (!sectionText && !ref && !requirement && !meaning) continue;
+    const reviewText = cellText(reviewRaw);
+    if (!text && !meaning && !responsible && !reviewText) {
+      // Blank row or a Ref-only spacer; still pick up a Section given here.
+      if (sectionText) currentSection = parseSection(sectionText) ?? currentSection;
+      continue;
+    }
 
     const issues: string[] = [];
-    const section = parseSection(sectionText);
-    if (!section) issues.push(sectionText ? `Section "${sectionText}" must be A to G.` : "Section is missing.");
-    if (!ref) issues.push("Ref is missing.");
-    else if (ref.length > 30) issues.push("Ref is longer than 30 characters.");
-    if (!requirement) issues.push("Requirement wording is missing.");
-    const reviewDate = parseDate(reviewRaw);
-    if (reviewDate === "invalid") issues.push(`Review date "${cellText(reviewRaw)}" not recognised (use 31/12/2026).`);
-
-    const key = ref.toUpperCase();
-    let action: SqmImportRow["action"] = issues.length ? "invalid" : "new";
-    if (action === "new" && seen.has(key)) {
-      action = "invalid";
-      issues.push(`Ref ${ref} appears more than once in the file.`);
-    } else if (action === "new" && existingRefs.has(key)) {
-      action = "exists";
+    let section: string | null = null;
+    if (sectionText) {
+      section = parseSection(sectionText);
+      if (section) currentSection = section;
+      else issues.push(`Section "${sectionText}" must be A to G.`);
+    } else {
+      section = parseSection(ref.charAt(0)) ?? currentSection;
     }
-    if (key) seen.add(key);
 
-    rows.push({
-      rowNumber: r,
-      section: section ?? sectionText,
-      ref,
+    let group: Group | null | undefined = ref ? groups.get(ref.toUpperCase()) : previous;
+    if (!group) {
+      group = { rowNumber: r, sectionText, section, ref, lines: [], meaning: "", responsible: "", reviewRaw: null, issues };
+      if (ref) groups.set(ref.toUpperCase(), group);
+      order.push(group);
+    } else if (!group.section && section) {
+      group.section = section;
+    }
+    if (text && !group.lines.includes(text)) group.lines.push(text);
+    if (meaning && !group.meaning) group.meaning = meaning;
+    if (responsible && !group.responsible) group.responsible = responsible;
+    if (reviewText && !cellText(group.reviewRaw)) group.reviewRaw = reviewRaw;
+    previous = group;
+  }
+
+  const rows: SqmImportRow[] = order.map((g) => {
+    const issues = [...g.issues];
+    const requirement = joinLines(g.lines);
+    if (!g.section && !issues.length) issues.push("Section is missing.");
+    if (!g.ref) issues.push("Ref is missing.");
+    else if (g.ref.length > 30) issues.push("Ref is longer than 30 characters.");
+    if (!requirement) issues.push("Requirement wording is missing.");
+    const reviewDate = parseDate(g.reviewRaw);
+    if (reviewDate === "invalid") issues.push(`Review date "${cellText(g.reviewRaw)}" not recognised (use 31/12/2026).`);
+
+    let action: SqmImportRow["action"] = issues.length ? "invalid" : "new";
+    if (action === "new" && existingRefs.has(g.ref.toUpperCase())) action = "exists";
+
+    return {
+      rowNumber: g.rowNumber,
+      section: g.section ?? g.sectionText,
+      ref: g.ref,
       requirement,
-      meaning,
-      responsible: responsible.slice(0, 120),
+      meaning: g.meaning,
+      responsible: g.responsible.slice(0, 120),
       reviewDate: reviewDate === "invalid" ? null : reviewDate,
       action,
       issues,
-    });
-  }
+    };
+  });
   return { rows, sectionTitles };
+}
+
+/** Tidies a line copied from Word: "·      text" → "• text", "o   text" → "◦ text", runs of spaces collapsed. */
+function cleanLine(text: string) {
+  return text
+    .replace(/\s+/g, " ")
+    .replace(/^[·•▪]\s*/, "• ")
+    .replace(/^o\s+/, "◦ ")
+    .trim();
+}
+
+/** Joins a requirement's lines. A sentence split across rows ("…involved in" / "delivering…") is rejoined. */
+function joinLines(lines: string[]) {
+  let out = "";
+  for (const line of lines) {
+    if (!out) out = line;
+    else if (!/[.?!:;]$/.test(out) && /^[a-z(]/.test(line)) out += ` ${line}`;
+    else out += `\n${line}`;
+  }
+  return out;
 }
 
 function formatUk(iso: string | null) {
