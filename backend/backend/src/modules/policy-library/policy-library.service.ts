@@ -44,7 +44,7 @@ interface UploadedFile {
 const STORAGE_FOLDER = "compliance-policies";
 
 // DATE columns come back as text so they are not shifted by the server's time zone.
-const POLICY_COLUMNS = `id, title, category, owner, review_frequency, current_version_id,
+const POLICY_COLUMNS = `id, title, kind, category, owner, review_frequency, current_version_id,
   last_reviewed_at::text AS last_reviewed_at, next_review_date::text AS next_review_date, archived,
   created_by, updated_by, created_at, updated_at`;
 const VERSION_COLUMNS = `id, policy_id, version_number, status, change_summary, file_name, mime_type, size_bytes,
@@ -205,6 +205,7 @@ async function buildPolicies(rows: PolicyRow[], actor: PolicyActor): Promise<Pol
     return {
       id: row.id,
       title: row.title,
+      kind: row.kind,
       category: row.category,
       owner: row.owner,
       reviewFrequency: row.review_frequency,
@@ -285,9 +286,9 @@ export const policyLibraryService = {
     const id = await inTransaction(async (client) => {
       const policy = (
         await client.query<{ id: string }>(
-          `INSERT INTO compliance_policies (title, category, owner, review_frequency, created_by, updated_by)
-           VALUES ($1, $2, $3, $4, $5, $5) RETURNING id`,
-          [input.title, input.category, input.owner, input.reviewFrequency, actor.email],
+          `INSERT INTO compliance_policies (title, kind, category, owner, review_frequency, created_by, updated_by)
+           VALUES ($1, $2, $3, $4, $5, $6, $6) RETURNING id`,
+          [input.title, input.kind, input.category, input.owner, input.reviewFrequency, actor.email],
         )
       ).rows[0];
       const version = await insertVersion(client, written, policy.id, 1, file, input.changeSummary || "First version", actor);
@@ -302,6 +303,7 @@ export const policyLibraryService = {
 
     const detail = await this.get(id, actor);
     await log(actor, "policy.created", detail.title, {
+      kind: detail.kind,
       category: detail.category,
       fileName: file.originalname,
       approvedNow: input.approveNow,
@@ -321,9 +323,9 @@ export const policyLibraryService = {
     try {
       await query(
         `UPDATE compliance_policies SET title = $2, category = $3, owner = $4, review_frequency = $5,
-           next_review_date = $6, updated_by = $7, updated_at = NOW()
+           next_review_date = $6, updated_by = $7, kind = $8, updated_at = NOW()
          WHERE id = $1`,
-        [id, input.title ?? before.title, input.category ?? before.category, input.owner ?? before.owner, frequency, nextReview, actor.email],
+        [id, input.title ?? before.title, input.category ?? before.category, input.owner ?? before.owner, frequency, nextReview, actor.email, input.kind ?? before.kind],
       );
     } catch (error) {
       if ((error as { code?: string }).code === "23505") {

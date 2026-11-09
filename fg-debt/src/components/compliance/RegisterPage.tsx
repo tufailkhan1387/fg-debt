@@ -211,7 +211,7 @@ export function RegisterPage({ registerKey }: { registerKey: string }) {
                         return (
                           <TableCell
                             key={key}
-                            className={field?.type === "longtext" ? "min-w-[14rem] max-w-md" : field?.type === "date" ? "whitespace-nowrap" : undefined}
+                            className={field?.type === "longtext" ? "min-w-[9rem] max-w-xs" : field?.type === "date" ? "whitespace-nowrap" : undefined}
                           >
                             <span className={field?.type === "longtext" ? "line-clamp-3" : undefined}>{display(field, entry.data[key])}</span>
                           </TableCell>
@@ -487,6 +487,19 @@ function EntryDialog({
               </div>
             ) : (
               <div className="grid gap-3 sm:grid-cols-2">
+                {def.scenarios && (
+                  <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs sm:col-span-2">
+                    <p className="font-semibold text-foreground">Scenarios ({def.scenarios.heading})</p>
+                    <ul className="mt-1.5 space-y-1">
+                      {def.scenarios.items.map((item, i) => (
+                        <li key={item.title}>
+                          <span className="font-semibold">Scenario {i + 1}</span> — {item.title.replace(/^\d+\.\s*/, "")}: {item.scenario}{" "}
+                          <span className="text-muted-foreground">Expected: {item.expected}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 {def.fields.map((field) => (
                   <FieldInput key={field.key} field={field} value={form[field.key] ?? ""} onChange={(v) => setForm((prev) => ({ ...prev, [field.key]: v }))} />
                 ))}

@@ -14,6 +14,10 @@ export const POLICY_CATEGORIES = [
   "Other",
 ] as const;
 
+/** Whether a Policy Library entry is a policy or a procedure. */
+export const POLICY_KINDS = ["policy", "procedure"] as const;
+export type PolicyKind = (typeof POLICY_KINDS)[number];
+
 export const POLICY_REVIEW_FREQUENCIES = ["quarterly", "six_monthly", "annual", "two_yearly"] as const;
 export type PolicyReviewFrequency = (typeof POLICY_REVIEW_FREQUENCIES)[number];
 
@@ -25,6 +29,7 @@ export const REVIEW_DUE_SOON_DAYS = 30;
 export interface PolicyRow {
   id: string;
   title: string;
+  kind: PolicyKind;
   category: string;
   owner: string;
   review_frequency: PolicyReviewFrequency;
@@ -79,6 +84,7 @@ export type ReviewState = "awaiting_approval" | "current" | "due_soon" | "overdu
 export interface Policy {
   id: string;
   title: string;
+  kind: PolicyKind;
   category: string;
   owner: string;
   reviewFrequency: PolicyReviewFrequency;

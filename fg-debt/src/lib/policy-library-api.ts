@@ -3,6 +3,9 @@ import { ApiError, apiRequest } from "@/lib/api";
 import { API_URL } from "@/lib/api-url";
 import { downloadCsvExport } from "@/lib/download-export";
 
+export type PolicyKind = "policy" | "procedure";
+export const POLICY_KIND_LABELS: Record<PolicyKind, string> = { policy: "Policy", procedure: "Procedure" };
+
 export type PolicyReviewFrequency = "quarterly" | "six_monthly" | "annual" | "two_yearly";
 export type VersionStatus = "pending" | "approved" | "rejected" | "superseded";
 export type ReviewState = "awaiting_approval" | "current" | "due_soon" | "overdue";
@@ -32,6 +35,7 @@ export interface PolicyVersion {
 export interface Policy {
   id: string;
   title: string;
+  kind: PolicyKind;
   category: string;
   owner: string;
   reviewFrequency: PolicyReviewFrequency;
@@ -68,6 +72,7 @@ export interface PolicySummary {
 
 export interface CreatePolicyBody {
   title: string;
+  kind: PolicyKind;
   category: string;
   owner: string;
   reviewFrequency: PolicyReviewFrequency;
@@ -136,7 +141,7 @@ export function useCreatePolicy() {
 
 export function useUpdatePolicy() {
   return usePolicyMutation(
-    ({ id, ...body }: { id: string; title?: string; category?: string; owner?: string; reviewFrequency?: PolicyReviewFrequency }) =>
+    ({ id, ...body }: { id: string; title?: string; kind?: PolicyKind; category?: string; owner?: string; reviewFrequency?: PolicyReviewFrequency }) =>
       apiRequest<{ policy: PolicyDetail }>(`${BASE}/${encodeURIComponent(id)}`, { method: "PATCH", body }),
   );
 }

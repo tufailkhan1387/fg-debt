@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { POLICY_REVIEW_FREQUENCIES } from "./policy-library.types.js";
+import { POLICY_KINDS, POLICY_REVIEW_FREQUENCIES } from "./policy-library.types.js";
 
 const isoDate = z
   .string()
@@ -9,6 +9,7 @@ const isoDate = z
 
 const policyFields = {
   title: z.string().trim().min(1, "Enter the policy title.").max(200),
+  kind: z.enum(POLICY_KINDS).default("policy"),
   category: z.string().trim().min(1, "Choose a category.").max(60),
   owner: z.string().trim().max(120).default(""),
   reviewFrequency: z.enum(POLICY_REVIEW_FREQUENCIES),
@@ -26,7 +27,7 @@ export const createPolicySchema = z.object({
   approvedOn: isoDate.optional().or(z.literal("").transform(() => undefined)),
 });
 
-export const updatePolicySchema = z.object(policyFields).partial();
+export const updatePolicySchema = z.object({ ...policyFields, kind: z.enum(POLICY_KINDS) }).partial();
 
 export const newVersionSchema = z.object({
   changeSummary: z.string().trim().min(1, "Say briefly what changed in this version.").max(2000),

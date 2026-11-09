@@ -28,7 +28,9 @@ import {
   POLICY_FREQUENCY_LABELS,
   useCreatePolicy,
   usePolicies,
+  POLICY_KIND_LABELS,
   type Policy,
+  type PolicyKind,
   type PolicyReviewFrequency,
 } from "@/lib/policy-library-api";
 
@@ -52,6 +54,7 @@ export function PolicyLibraryPage() {
   const navigate = useNavigate();
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
+  const [kind, setKind] = useState<PolicyKind | "all">("all");
   const [addOpen, setAddOpen] = useState(false);
 
   const canEdit = me.data?.permissions?.["policies"] === "edit";
@@ -61,9 +64,9 @@ export function PolicyLibraryPage() {
     const match = FILTERS.find((f) => f.value === filter)?.match ?? (() => true);
     const term = search.trim().toLowerCase();
     return (data?.policies ?? []).filter(
-      (p) => match(p) && (!term || [p.title, p.category, p.owner].some((v) => v.toLowerCase().includes(term))),
+      (p) => match(p) && (kind === "all" || p.kind === kind) && (!term || [p.title, p.category, p.owner].some((v) => v.toLowerCase().includes(term))),
     );
-  }, [data?.policies, filter, search]);
+  }, [data?.policies, filter, kind, search]);
 
   if (me.isLoading || isLoading) return <SolicitorDataLoading label="Loading policy library…" />;
 
@@ -87,13 +90,13 @@ export function PolicyLibraryPage() {
         <div>
           <h1 className="text-2xl font-display font-bold tracking-tight text-foreground sm:text-3xl">Policy Library</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            The firm's policies and procedures, with every version kept. A new or amended policy only takes effect once
-            the Principal approves it. Staff confirm they have read each policy in force.
+            The firm's policies and procedures, with every version kept. A new or amended document only takes effect once
+            the Principal approves it. Staff confirm they have read each one in force.
           </p>
         </div>
         {canEdit && (
           <Button onClick={() => setAddOpen(true)}>
-            <Plus className="size-4" /> Add policy
+            <Plus className="size-4" /> Add policy or procedure
           </Button>
         )}
       </div>
@@ -117,7 +120,17 @@ export function PolicyLibraryPage() {
             ))}
           </TabsList>
         </Tabs>
-        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search title, category, owner…" className="sm:max-w-xs" />
+        <div className="flex gap-2 sm:max-w-md">
+          <Select value={kind} onValueChange={(v) => setKind(v as PolicyKind | "all")}>
+            <SelectTrigger className="w-40" aria-label="Show policies or procedures"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All types</SelectItem>
+              <SelectItem value="policy">Policies only</SelectItem>
+              <SelectItem value="procedure">Procedures only</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search title, category, owner…" />
+        </div>
       </div>
 
       <Card className="surface-card">
@@ -125,7 +138,7 @@ export function PolicyLibraryPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="text-xs font-semibold">Policy</TableHead>
+                <TableHead className="text-xs font-semibold">Policy / procedure</TableHead>
                 <TableHead className="text-xs font-semibold">Version in force</TableHead>
                 <TableHead className="text-xs font-semibold">Review</TableHead>
                 <TableHead className="text-xs font-semibold">Owner</TableHead>
@@ -136,7 +149,7 @@ export function PolicyLibraryPage() {
               {policies.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
-                    {data?.policies.length ? "No policies match this view." : "No policies yet. Add the firm's first policy."}
+                    {data?.policies.length ? "Nothing matches this view." : "No policies or procedures yet. Add the firm's first one."}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -148,7 +161,9 @@ export function PolicyLibraryPage() {
                   >
                     <TableCell className="min-w-[14rem]">
                       <div className="font-semibold">{policy.title}</div>
-                      <div className="text-muted-foreground">{policy.category}</div>
+                      <div className="text-muted-foreground">
+                        {POLICY_KIND_LABELS[policy.kind]} · {policy.category}
+                      </div>
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
                       {policy.currentVersion ? (
@@ -208,6 +223,7 @@ function AddPolicyDialog({
   const [file, setFile] = useState<File | null>(null);
   const [form, setForm] = useState({
     title: "",
+    kind: "policy" as PolicyKind,
     category: categories[0] ?? "Other",
     owner: "",
     reviewFrequency: "annual" as PolicyReviewFrequency,
@@ -220,7 +236,7 @@ function AddPolicyDialog({
   const submit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!file) {
-      toast.error("Attach the policy document (PDF or Word).");
+      toast.error("Attach the document (PDF or Word).");
       return;
     }
     createPolicy.mutate(
@@ -228,12 +244,12 @@ function AddPolicyDialog({
       {
         onSuccess: ({ policy }) => {
           toast.success(
-            policy.currentVersion ? "Policy added and in force." : "Policy added. It takes effect once the Principal approves it.",
+            `${POLICY_KIND_LABELS[policy.kind]} ${policy.currentVersion ? "added and in force." : "added. It takes effect once the Principal approves it."}`,
           );
           onClose();
           onCreated(policy.id);
         },
-        onError: (error) => toast.error("Could not add the policy", { description: errorMessage(error) }),
+        onError: (error) => toast.error("Could not add it", { description: errorMessage(error) }),
       },
     );
   };
@@ -242,13 +258,30 @@ function AddPolicyDialog({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>Add policy</DialogTitle>
+          <DialogTitle>Add policy or procedure</DialogTitle>
           <DialogDescription>Upload the document as PDF or Word. It is stored encrypted.</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
           <div className="space-y-1.5">
+            <Label>Type</Label>
+            <Select value={form.kind} onValueChange={(v) => set("kind", v as PolicyKind)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {Object.entries(POLICY_KIND_LABELS).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
             <Label htmlFor="title">Title</Label>
-            <Input id="title" value={form.title} onChange={(e) => set("title", e.target.value)} placeholder="e.g. Complaints Procedure" required />
+            <Input
+              id="title"
+              value={form.title}
+              onChange={(e) => set("title", e.target.value)}
+              placeholder={form.kind === "procedure" ? "e.g. Complaints Procedure" : "e.g. Complaints Policy"}
+              required
+            />
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
@@ -275,7 +308,7 @@ function AddPolicyDialog({
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="owner">Policy owner</Label>
+            <Label htmlFor="owner">Owner</Label>
             <Input id="owner" value={form.owner} onChange={(e) => set("owner", e.target.value)} placeholder="e.g. Frantz Gregory" />
           </div>
           <div className="space-y-1.5">
@@ -292,9 +325,9 @@ function AddPolicyDialog({
               <label className="flex items-start gap-2.5 text-sm">
                 <Checkbox checked={form.approveNow} onCheckedChange={(v) => set("approveNow", v === true)} className="mt-0.5" />
                 <span>
-                  <span className="font-semibold">I approve this policy now</span>
+                  <span className="font-semibold">I approve this {POLICY_KIND_LABELS[form.kind].toLowerCase()} now</span>
                   <span className="block text-xs text-muted-foreground">
-                    Use this for a policy you have already approved. Otherwise it waits for your approval.
+                    Use this for a document you have already approved. Otherwise it waits for your approval.
                   </span>
                 </span>
               </label>
@@ -319,7 +352,7 @@ function AddPolicyDialog({
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
             <Button type="submit" disabled={createPolicy.isPending}>
               {createPolicy.isPending ? <Loader2 className="size-4 animate-spin" /> : <FileUp className="size-4" />}
-              Add policy
+              Add {POLICY_KIND_LABELS[form.kind].toLowerCase()}
             </Button>
           </DialogFooter>
         </form>

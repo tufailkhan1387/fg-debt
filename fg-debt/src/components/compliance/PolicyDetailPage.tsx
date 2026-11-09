@@ -49,6 +49,7 @@ import { useComplianceMe } from "@/lib/compliance-access-api";
 import {
   downloadPolicyVersion,
   POLICY_FREQUENCY_LABELS,
+  POLICY_KIND_LABELS,
   useAddPolicyVersion,
   useApproveVersion,
   useArchivePolicy,
@@ -61,6 +62,7 @@ import {
   useSavePolicyText,
   useUpdatePolicy,
   type PolicyDetail,
+  type PolicyKind,
   type PolicyReviewFrequency,
   type PolicyVersion,
 } from "@/lib/policy-library-api";
@@ -122,7 +124,7 @@ export function PolicyDetailPage({ policyId }: { policyId: string }) {
             )}
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            {policy.category} · Owner: {policy.owner || "—"} · Reviewed {POLICY_FREQUENCY_LABELS[policy.reviewFrequency].toLowerCase()} · Last
+            {POLICY_KIND_LABELS[policy.kind]} · {policy.category} · Owner: {policy.owner || "—"} · Reviewed {POLICY_FREQUENCY_LABELS[policy.reviewFrequency].toLowerCase()} · Last
             review {formatDate(policy.lastReviewedAt)} · Next review {formatDate(policy.nextReviewDate)}
           </p>
         </div>
@@ -469,6 +471,7 @@ function EditDetailsDialog({ policy, onClose }: { policy: PolicyDetail; onClose:
   const categories = data?.categories ?? [];
   const [form, setForm] = useState({
     title: policy.title,
+    kind: policy.kind,
     category: policy.category,
     owner: policy.owner,
     reviewFrequency: policy.reviewFrequency,
@@ -502,6 +505,17 @@ function EditDetailsDialog({ policy, onClose }: { policy: PolicyDetail; onClose:
             <Input id="title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>Type</Label>
+              <Select value={form.kind} onValueChange={(v) => setForm({ ...form, kind: v as PolicyKind })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(POLICY_KIND_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-1.5">
               <Label>Category</Label>
               <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
@@ -526,7 +540,7 @@ function EditDetailsDialog({ policy, onClose }: { policy: PolicyDetail; onClose:
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="owner">Policy owner</Label>
+            <Label htmlFor="owner">Owner</Label>
             <Input id="owner" value={form.owner} onChange={(e) => setForm({ ...form, owner: e.target.value })} />
           </div>
           <DialogFooter>
