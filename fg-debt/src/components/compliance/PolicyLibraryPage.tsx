@@ -44,6 +44,17 @@ const FILTERS: Array<{ value: Filter; label: string; match: (p: Policy) => boole
   { value: "archived", label: "Archived", match: (p) => p.archived },
 ];
 
+const KIND_TAB_KEY = "fg-policy-library-tab";
+
+/** The tab last open, so coming back from a procedure lands on Procedures. */
+function initialKind(): PolicyKind {
+  try {
+    return sessionStorage.getItem(KIND_TAB_KEY) === "procedure" ? "procedure" : "policy";
+  } catch {
+    return "policy";
+  }
+}
+
 function errorMessage(error: unknown) {
   return error instanceof ApiError ? error.message : "Please try again.";
 }
@@ -54,7 +65,15 @@ export function PolicyLibraryPage() {
   const navigate = useNavigate();
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
-  const [kind, setKind] = useState<PolicyKind | "all">("all");
+  const [kind, setKindState] = useState<PolicyKind>(initialKind);
+  const setKind = (value: PolicyKind) => {
+    setKindState(value);
+    try {
+      sessionStorage.setItem(KIND_TAB_KEY, value);
+    } catch {
+      // Remembering the tab is only a convenience.
+    }
+  };
   const [addOpen, setAddOpen] = useState(false);
 
   const canEdit = me.data?.permissions?.["policies"] === "edit";
@@ -64,7 +83,7 @@ export function PolicyLibraryPage() {
     const match = FILTERS.find((f) => f.value === filter)?.match ?? (() => true);
     const term = search.trim().toLowerCase();
     return (data?.policies ?? []).filter(
-      (p) => match(p) && (kind === "all" || p.kind === kind) && (!term || [p.title, p.category, p.owner].some((v) => v.toLowerCase().includes(term))),
+      (p) => match(p) && p.kind === kind && (!term || [p.title, p.category, p.owner].some((v) => v.toLowerCase().includes(term))),
     );
   }, [data?.policies, filter, kind, search]);
 
@@ -82,7 +101,17 @@ export function PolicyLibraryPage() {
     );
   }
 
-  const summary = data?.summary;
+  // Counts for the open tab only (same rules as the server's summary).
+  const ofKind = (data?.policies ?? []).filter((p) => p.kind === kind);
+  const active = ofKind.filter((p) => !p.archived);
+  const summary = {
+    inForce: active.filter((p) => p.currentVersion).length,
+    awaitingApproval: active.filter((p) => p.pendingVersion).length,
+    reviewDue: active.filter((p) => p.reviewState === "overdue" || p.reviewState === "due_soon").length,
+    toAcknowledge: active.filter((p) => p.acknowledgedByMe === false).length,
+  };
+  const countOf = (k: PolicyKind) => (data?.policies ?? []).filter((p) => p.kind === k && !p.archived).length;
+  const label = POLICY_KIND_LABELS[kind].toLowerCase();
 
   return (
     <div className="space-y-6 pb-12">
@@ -96,19 +125,28 @@ export function PolicyLibraryPage() {
         </div>
         {canEdit && (
           <Button onClick={() => setAddOpen(true)}>
-            <Plus className="size-4" /> Add policy or procedure
+            <Plus className="size-4" /> Add {label}
           </Button>
         )}
       </div>
 
-      {summary && (
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <SolicitorStatCard label="In force" value={summary.inForce} icon={FileCheck2} statusColor="blue" onClick={() => setFilter("all")} active={filter === "all"} />
-          <SolicitorStatCard label="Awaiting approval" value={summary.awaitingApproval} icon={ClipboardCheck} statusColor="amber" onClick={() => setFilter("pending")} active={filter === "pending"} />
-          <SolicitorStatCard label="Review due" value={summary.reviewDue} icon={CalendarClock} statusColor="rose" onClick={() => setFilter("review")} active={filter === "review"} />
-          <SolicitorStatCard label="For me to acknowledge" value={summary.toAcknowledge} icon={BookCheck} statusColor="purple" onClick={() => setFilter("acknowledge")} active={filter === "acknowledge"} />
-        </div>
-      )}
+      <Tabs value={kind} onValueChange={(value) => setKind(value as PolicyKind)}>
+        <TabsList className="h-auto">
+          {(["policy", "procedure"] as const).map((k) => (
+            <TabsTrigger key={k} value={k} className="px-5 py-2 text-sm font-semibold">
+              {k === "policy" ? "Policies" : "Procedures"}
+              <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">{countOf(k)}</span>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <SolicitorStatCard label="In force" value={summary.inForce} icon={FileCheck2} statusColor="blue" onClick={() => setFilter("all")} active={filter === "all"} />
+        <SolicitorStatCard label="Awaiting approval" value={summary.awaitingApproval} icon={ClipboardCheck} statusColor="amber" onClick={() => setFilter("pending")} active={filter === "pending"} />
+        <SolicitorStatCard label="Review due" value={summary.reviewDue} icon={CalendarClock} statusColor="rose" onClick={() => setFilter("review")} active={filter === "review"} />
+        <SolicitorStatCard label="For me to acknowledge" value={summary.toAcknowledge} icon={BookCheck} statusColor="purple" onClick={() => setFilter("acknowledge")} active={filter === "acknowledge"} />
+      </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Tabs value={filter} onValueChange={(value) => setFilter(value as Filter)}>
@@ -120,17 +158,7 @@ export function PolicyLibraryPage() {
             ))}
           </TabsList>
         </Tabs>
-        <div className="flex gap-2 sm:max-w-md">
-          <Select value={kind} onValueChange={(v) => setKind(v as PolicyKind | "all")}>
-            <SelectTrigger className="w-40" aria-label="Show policies or procedures"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All types</SelectItem>
-              <SelectItem value="policy">Policies only</SelectItem>
-              <SelectItem value="procedure">Procedures only</SelectItem>
-            </SelectContent>
-          </Select>
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search title, category, owner…" />
-        </div>
+        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search title, category, owner…" className="sm:max-w-xs" />
       </div>
 
       <Card className="surface-card">
@@ -138,7 +166,7 @@ export function PolicyLibraryPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="text-xs font-semibold">Policy / procedure</TableHead>
+                <TableHead className="text-xs font-semibold">{POLICY_KIND_LABELS[kind]}</TableHead>
                 <TableHead className="text-xs font-semibold">Version in force</TableHead>
                 <TableHead className="text-xs font-semibold">Review</TableHead>
                 <TableHead className="text-xs font-semibold">Owner</TableHead>
@@ -149,7 +177,7 @@ export function PolicyLibraryPage() {
               {policies.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
-                    {data?.policies.length ? "Nothing matches this view." : "No policies or procedures yet. Add the firm's first one."}
+                    {ofKind.length ? "Nothing matches this view." : `No ${label === "policy" ? "policies" : "procedures"} yet. Add the firm's first ${label}.`}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -161,9 +189,7 @@ export function PolicyLibraryPage() {
                   >
                     <TableCell className="min-w-[14rem]">
                       <div className="font-semibold">{policy.title}</div>
-                      <div className="text-muted-foreground">
-                        {POLICY_KIND_LABELS[policy.kind]} · {policy.category}
-                      </div>
+                      <div className="text-muted-foreground">{policy.category}</div>
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
                       {policy.currentVersion ? (
@@ -199,6 +225,7 @@ export function PolicyLibraryPage() {
       {addOpen && (
         <AddPolicyDialog
           categories={data?.categories ?? []}
+          kind={kind}
           isPrincipal={isPrincipal}
           onClose={() => setAddOpen(false)}
           onCreated={(id) => navigate({ to: "/solicitor/fg-compliance/policies/$policyId", params: { policyId: id } })}
@@ -210,11 +237,13 @@ export function PolicyLibraryPage() {
 
 function AddPolicyDialog({
   categories,
+  kind,
   isPrincipal,
   onClose,
   onCreated,
 }: {
   categories: string[];
+  kind: PolicyKind;
   isPrincipal: boolean;
   onClose: () => void;
   onCreated: (id: string) => void;
@@ -223,7 +252,7 @@ function AddPolicyDialog({
   const [file, setFile] = useState<File | null>(null);
   const [form, setForm] = useState({
     title: "",
-    kind: "policy" as PolicyKind,
+    kind,
     category: categories[0] ?? "Other",
     owner: "",
     reviewFrequency: "annual" as PolicyReviewFrequency,
@@ -258,7 +287,7 @@ function AddPolicyDialog({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>Add policy or procedure</DialogTitle>
+          <DialogTitle>Add {POLICY_KIND_LABELS[form.kind].toLowerCase()}</DialogTitle>
           <DialogDescription>Upload the document as PDF or Word. It is stored encrypted.</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
