@@ -91,6 +91,7 @@ const fullSolicitorNav: SolicitorNavGroup[] = [
       { to: "/solicitor/fg-compliance/audit-pack", label: "SQM Audit Pack", icon: Archive, access: "principal" },
       { to: "/solicitor/fg-compliance/ai-review", label: "AI Document Review", icon: Sparkles, access: "documents" },
       { to: "/solicitor/fg-compliance/policies", label: "Policy Library", icon: BookOpen, access: "policies" },
+      { to: "/solicitor/fg-compliance/procedures", label: "Procedure Library", icon: ClipboardList, access: "policies" },
       { to: "/solicitor/fg-compliance/risks", label: "Risk Register", icon: ShieldAlert, access: "risks" },
       { to: "/solicitor/fg-compliance/registers", label: "Compliance Registers", icon: TableProperties, access: "registers" },
       { to: "/solicitor/fg-compliance/file-reviews", label: "File Reviews", icon: FileSearch, access: "file_reviews" },

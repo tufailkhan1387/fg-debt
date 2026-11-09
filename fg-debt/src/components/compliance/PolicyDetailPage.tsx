@@ -109,8 +109,11 @@ export function PolicyDetailPage({ policyId }: { policyId: string }) {
 
   return (
     <div className="space-y-6 pb-12">
-      <Link to="/solicitor/fg-compliance/policies" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="size-4" /> Policy Library
+      <Link
+        to={policy.kind === "procedure" ? "/solicitor/fg-compliance/procedures" : "/solicitor/fg-compliance/policies"}
+        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="size-4" /> {policy.kind === "procedure" ? "Procedure Library" : "Policy Library"}
       </Link>
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -662,9 +665,9 @@ function DeletePolicyDialog({ policy, onClose }: { policy: PolicyDetail; onClose
               e.preventDefault();
               remove.mutate(policy.id, {
                 onSuccess: () => {
-                  toast.success("Policy deleted.");
+                  toast.success(`${POLICY_KIND_LABELS[policy.kind]} deleted.`);
                   onClose();
-                  navigate({ to: "/solicitor/fg-compliance/policies" });
+                  navigate({ to: policy.kind === "procedure" ? "/solicitor/fg-compliance/procedures" : "/solicitor/fg-compliance/policies" });
                 },
                 onError: (error) => toast.error("Could not delete the policy", { description: errorMessage(error) }),
               });

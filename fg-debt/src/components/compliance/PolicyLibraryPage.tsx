@@ -44,36 +44,17 @@ const FILTERS: Array<{ value: Filter; label: string; match: (p: Policy) => boole
   { value: "archived", label: "Archived", match: (p) => p.archived },
 ];
 
-const KIND_TAB_KEY = "fg-policy-library-tab";
-
-/** The tab last open, so coming back from a procedure lands on Procedures. */
-function initialKind(): PolicyKind {
-  try {
-    return sessionStorage.getItem(KIND_TAB_KEY) === "procedure" ? "procedure" : "policy";
-  } catch {
-    return "policy";
-  }
-}
-
 function errorMessage(error: unknown) {
   return error instanceof ApiError ? error.message : "Please try again.";
 }
 
-export function PolicyLibraryPage() {
+/** The Policy Library (policies) and the Procedure Library (procedures) are the same page for one type each. */
+export function PolicyLibraryPage({ kind = "policy" }: { kind?: PolicyKind }) {
   const me = useComplianceMe();
   const { data, isLoading, isError, error } = usePolicies();
   const navigate = useNavigate();
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
-  const [kind, setKindState] = useState<PolicyKind>(initialKind);
-  const setKind = (value: PolicyKind) => {
-    setKindState(value);
-    try {
-      sessionStorage.setItem(KIND_TAB_KEY, value);
-    } catch {
-      // Remembering the tab is only a convenience.
-    }
-  };
   const [addOpen, setAddOpen] = useState(false);
 
   const canEdit = me.data?.permissions?.["policies"] === "edit";
@@ -87,7 +68,11 @@ export function PolicyLibraryPage() {
     );
   }, [data?.policies, filter, kind, search]);
 
-  if (me.isLoading || isLoading) return <SolicitorDataLoading label="Loading policy library…" />;
+  const label = POLICY_KIND_LABELS[kind].toLowerCase();
+  const plural = kind === "procedure" ? "procedures" : "policies";
+  const library = kind === "procedure" ? "Procedure Library" : "Policy Library";
+
+  if (me.isLoading || isLoading) return <SolicitorDataLoading label={`Loading ${library.toLowerCase()}…`} />;
 
   if (isError) {
     const denied = error instanceof ApiError && error.status === 403;
@@ -95,13 +80,13 @@ export function PolicyLibraryPage() {
       <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 text-center text-muted-foreground">
         {denied && <Lock className="size-7" />}
         <p className="text-sm">
-          {denied ? "You do not have access to the Policy Library. Ask the Principal." : "Could not load the policy library."}
+          {denied ? `You do not have access to the ${library}. Ask the Principal.` : `Could not load the ${library.toLowerCase()}.`}
         </p>
       </div>
     );
   }
 
-  // Counts for the open tab only (same rules as the server's summary).
+  // Counts for this type only (same rules as the server's summary).
   const ofKind = (data?.policies ?? []).filter((p) => p.kind === kind);
   const active = ofKind.filter((p) => !p.archived);
   const summary = {
@@ -110,17 +95,15 @@ export function PolicyLibraryPage() {
     reviewDue: active.filter((p) => p.reviewState === "overdue" || p.reviewState === "due_soon").length,
     toAcknowledge: active.filter((p) => p.acknowledgedByMe === false).length,
   };
-  const countOf = (k: PolicyKind) => (data?.policies ?? []).filter((p) => p.kind === k && !p.archived).length;
-  const label = POLICY_KIND_LABELS[kind].toLowerCase();
 
   return (
     <div className="space-y-6 pb-12">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="text-2xl font-display font-bold tracking-tight text-foreground sm:text-3xl">Policy Library</h1>
+          <h1 className="text-2xl font-display font-bold tracking-tight text-foreground sm:text-3xl">{library}</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            The firm's policies and procedures, with every version kept. A new or amended document only takes effect once
-            the Principal approves it. Staff confirm they have read each one in force.
+            The firm's {plural}, with every version kept. A new or amended {label} only takes effect once the Principal
+            approves it. Staff confirm they have read each one in force.
           </p>
         </div>
         {canEdit && (
@@ -129,17 +112,6 @@ export function PolicyLibraryPage() {
           </Button>
         )}
       </div>
-
-      <Tabs value={kind} onValueChange={(value) => setKind(value as PolicyKind)}>
-        <TabsList className="h-auto">
-          {(["policy", "procedure"] as const).map((k) => (
-            <TabsTrigger key={k} value={k} className="px-5 py-2 text-sm font-semibold">
-              {k === "policy" ? "Policies" : "Procedures"}
-              <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">{countOf(k)}</span>
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <SolicitorStatCard label="In force" value={summary.inForce} icon={FileCheck2} statusColor="blue" onClick={() => setFilter("all")} active={filter === "all"} />
@@ -177,7 +149,7 @@ export function PolicyLibraryPage() {
               {policies.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
-                    {ofKind.length ? "Nothing matches this view." : `No ${label === "policy" ? "policies" : "procedures"} yet. Add the firm's first ${label}.`}
+                    {ofKind.length ? "Nothing matches this view." : `No ${plural} yet. Add the firm's first ${label}.`}
                   </TableCell>
                 </TableRow>
               ) : (

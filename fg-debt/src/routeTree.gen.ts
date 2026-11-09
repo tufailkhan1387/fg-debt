@@ -77,6 +77,7 @@ import { Route as SolicitorSolicitorFgComplianceFileReviewsIndexRouteImport } fr
 import { Route as SolicitorSolicitorFgComplianceFileReviewsReviewIdRouteImport } from './routes/_solicitor.solicitor.fg-compliance.file-reviews.$reviewId'
 import { Route as SolicitorSolicitorFgCompliancePoliciesIndexRouteImport } from './routes/_solicitor.solicitor.fg-compliance.policies.index'
 import { Route as SolicitorSolicitorFgCompliancePoliciesPolicyIdRouteImport } from './routes/_solicitor.solicitor.fg-compliance.policies.$policyId'
+import { Route as SolicitorSolicitorFgComplianceProceduresIndexRouteImport } from './routes/_solicitor.solicitor.fg-compliance.procedures.index'
 import { Route as SolicitorSolicitorFgComplianceRegistersIndexRouteImport } from './routes/_solicitor.solicitor.fg-compliance.registers.index'
 import { Route as SolicitorSolicitorFgComplianceRegistersRegisterKeyRouteImport } from './routes/_solicitor.solicitor.fg-compliance.registers.$registerKey'
 import { Route as SolicitorSolicitorFgComplianceSqmIndexRouteImport } from './routes/_solicitor.solicitor.fg-compliance.sqm.index'
@@ -459,6 +460,12 @@ const SolicitorSolicitorFgCompliancePoliciesPolicyIdRoute =
     path: '/solicitor/fg-compliance/policies/$policyId',
     getParentRoute: () => SolicitorRoute,
   } as any)
+const SolicitorSolicitorFgComplianceProceduresIndexRoute =
+  SolicitorSolicitorFgComplianceProceduresIndexRouteImport.update({
+    id: '/solicitor/fg-compliance/procedures/',
+    path: '/solicitor/fg-compliance/procedures/',
+    getParentRoute: () => SolicitorRoute,
+  } as any)
 const SolicitorSolicitorFgComplianceRegistersIndexRoute =
   SolicitorSolicitorFgComplianceRegistersIndexRouteImport.update({
     id: '/solicitor/fg-compliance/registers/',
@@ -572,6 +579,7 @@ export interface FileRoutesByFullPath {
   '/solicitor/fg-compliance/business/': typeof SolicitorSolicitorFgComplianceBusinessIndexRoute
   '/solicitor/fg-compliance/file-reviews/': typeof SolicitorSolicitorFgComplianceFileReviewsIndexRoute
   '/solicitor/fg-compliance/policies/': typeof SolicitorSolicitorFgCompliancePoliciesIndexRoute
+  '/solicitor/fg-compliance/procedures/': typeof SolicitorSolicitorFgComplianceProceduresIndexRoute
   '/solicitor/fg-compliance/registers/': typeof SolicitorSolicitorFgComplianceRegistersIndexRoute
   '/solicitor/fg-compliance/sqm/': typeof SolicitorSolicitorFgComplianceSqmIndexRoute
   '/solicitor/fg-compliance/training/': typeof SolicitorSolicitorFgComplianceTrainingIndexRoute
@@ -647,6 +655,7 @@ export interface FileRoutesByTo {
   '/solicitor/fg-compliance/business': typeof SolicitorSolicitorFgComplianceBusinessIndexRoute
   '/solicitor/fg-compliance/file-reviews': typeof SolicitorSolicitorFgComplianceFileReviewsIndexRoute
   '/solicitor/fg-compliance/policies': typeof SolicitorSolicitorFgCompliancePoliciesIndexRoute
+  '/solicitor/fg-compliance/procedures': typeof SolicitorSolicitorFgComplianceProceduresIndexRoute
   '/solicitor/fg-compliance/registers': typeof SolicitorSolicitorFgComplianceRegistersIndexRoute
   '/solicitor/fg-compliance/sqm': typeof SolicitorSolicitorFgComplianceSqmIndexRoute
   '/solicitor/fg-compliance/training': typeof SolicitorSolicitorFgComplianceTrainingIndexRoute
@@ -725,6 +734,7 @@ export interface FileRoutesById {
   '/_solicitor/solicitor/fg-compliance/business/': typeof SolicitorSolicitorFgComplianceBusinessIndexRoute
   '/_solicitor/solicitor/fg-compliance/file-reviews/': typeof SolicitorSolicitorFgComplianceFileReviewsIndexRoute
   '/_solicitor/solicitor/fg-compliance/policies/': typeof SolicitorSolicitorFgCompliancePoliciesIndexRoute
+  '/_solicitor/solicitor/fg-compliance/procedures/': typeof SolicitorSolicitorFgComplianceProceduresIndexRoute
   '/_solicitor/solicitor/fg-compliance/registers/': typeof SolicitorSolicitorFgComplianceRegistersIndexRoute
   '/_solicitor/solicitor/fg-compliance/sqm/': typeof SolicitorSolicitorFgComplianceSqmIndexRoute
   '/_solicitor/solicitor/fg-compliance/training/': typeof SolicitorSolicitorFgComplianceTrainingIndexRoute
@@ -802,6 +812,7 @@ export interface FileRouteTypes {
     | '/solicitor/fg-compliance/business/'
     | '/solicitor/fg-compliance/file-reviews/'
     | '/solicitor/fg-compliance/policies/'
+    | '/solicitor/fg-compliance/procedures/'
     | '/solicitor/fg-compliance/registers/'
     | '/solicitor/fg-compliance/sqm/'
     | '/solicitor/fg-compliance/training/'
@@ -877,6 +888,7 @@ export interface FileRouteTypes {
     | '/solicitor/fg-compliance/business'
     | '/solicitor/fg-compliance/file-reviews'
     | '/solicitor/fg-compliance/policies'
+    | '/solicitor/fg-compliance/procedures'
     | '/solicitor/fg-compliance/registers'
     | '/solicitor/fg-compliance/sqm'
     | '/solicitor/fg-compliance/training'
@@ -954,6 +966,7 @@ export interface FileRouteTypes {
     | '/_solicitor/solicitor/fg-compliance/business/'
     | '/_solicitor/solicitor/fg-compliance/file-reviews/'
     | '/_solicitor/solicitor/fg-compliance/policies/'
+    | '/_solicitor/solicitor/fg-compliance/procedures/'
     | '/_solicitor/solicitor/fg-compliance/registers/'
     | '/_solicitor/solicitor/fg-compliance/sqm/'
     | '/_solicitor/solicitor/fg-compliance/training/'
@@ -1448,6 +1461,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SolicitorSolicitorFgCompliancePoliciesPolicyIdRouteImport
       parentRoute: typeof SolicitorRoute
     }
+    '/_solicitor/solicitor/fg-compliance/procedures/': {
+      id: '/_solicitor/solicitor/fg-compliance/procedures/'
+      path: '/solicitor/fg-compliance/procedures'
+      fullPath: '/solicitor/fg-compliance/procedures/'
+      preLoaderRoute: typeof SolicitorSolicitorFgComplianceProceduresIndexRouteImport
+      parentRoute: typeof SolicitorRoute
+    }
     '/_solicitor/solicitor/fg-compliance/registers/': {
       id: '/_solicitor/solicitor/fg-compliance/registers/'
       path: '/solicitor/fg-compliance/registers'
@@ -1607,6 +1627,7 @@ interface SolicitorRouteChildren {
   SolicitorSolicitorFgComplianceBusinessIndexRoute: typeof SolicitorSolicitorFgComplianceBusinessIndexRoute
   SolicitorSolicitorFgComplianceFileReviewsIndexRoute: typeof SolicitorSolicitorFgComplianceFileReviewsIndexRoute
   SolicitorSolicitorFgCompliancePoliciesIndexRoute: typeof SolicitorSolicitorFgCompliancePoliciesIndexRoute
+  SolicitorSolicitorFgComplianceProceduresIndexRoute: typeof SolicitorSolicitorFgComplianceProceduresIndexRoute
   SolicitorSolicitorFgComplianceRegistersIndexRoute: typeof SolicitorSolicitorFgComplianceRegistersIndexRoute
   SolicitorSolicitorFgComplianceSqmIndexRoute: typeof SolicitorSolicitorFgComplianceSqmIndexRoute
   SolicitorSolicitorFgComplianceTrainingIndexRoute: typeof SolicitorSolicitorFgComplianceTrainingIndexRoute
@@ -1671,6 +1692,8 @@ const SolicitorRouteChildren: SolicitorRouteChildren = {
     SolicitorSolicitorFgComplianceFileReviewsIndexRoute,
   SolicitorSolicitorFgCompliancePoliciesIndexRoute:
     SolicitorSolicitorFgCompliancePoliciesIndexRoute,
+  SolicitorSolicitorFgComplianceProceduresIndexRoute:
+    SolicitorSolicitorFgComplianceProceduresIndexRoute,
   SolicitorSolicitorFgComplianceRegistersIndexRoute:
     SolicitorSolicitorFgComplianceRegistersIndexRoute,
   SolicitorSolicitorFgComplianceSqmIndexRoute:
