@@ -12,6 +12,11 @@ const principal = requireCompliance("principal");
 const upload = policyDocumentUploadMiddleware.single("file");
 
 policyLibraryRouter.get("/", authenticate, canView, c.list);
+// Categories (registered before "/:id" so "categories" is not read as a policy id).
+policyLibraryRouter.get("/categories", authenticate, canView, c.categories);
+policyLibraryRouter.post("/categories", authenticate, canEdit, c.createCategory);
+policyLibraryRouter.patch("/categories/:id", authenticate, canEdit, c.renameCategory);
+policyLibraryRouter.delete("/categories/:id", authenticate, canEdit, c.deleteCategory);
 policyLibraryRouter.get("/:id", authenticate, canView, c.get);
 policyLibraryRouter.get("/versions/:versionId/file", authenticate, canView, c.download);
 // Anyone who can read policies records their own acknowledgement.

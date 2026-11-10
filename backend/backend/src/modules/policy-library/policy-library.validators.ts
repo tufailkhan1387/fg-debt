@@ -49,5 +49,9 @@ export const editTextSchema = z.object({
 
 export const archiveSchema = z.object({ archived: z.boolean() });
 
+export const categorySchema = z.object({
+  name: z.string().trim().min(1, "Enter the category name.").max(60, "Keep the category name under 60 characters."),
+});
+
 export type CreatePolicyInput = z.infer<typeof createPolicySchema>;
 export type UpdatePolicyInput = z.infer<typeof updatePolicySchema>;

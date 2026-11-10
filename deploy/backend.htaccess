@@ -2,4 +2,8 @@
 # Forwards https://firmsure.co.uk/backend/... to the API on this server (port 4000),
 # e.g. /backend/api/health -> http://127.0.0.1:4000/api/health
 RewriteEngine On
+# Tell the API the visitor used HTTPS (the hop to port 4000 is plain HTTP), so it can see the connection is secure.
+<IfModule mod_headers.c>
+  RequestHeader set X-Forwarded-Proto "https" "expr=%{HTTPS} == 'on'"
+</IfModule>
 RewriteRule ^(.*)$ http://127.0.0.1:4000/$1 [P,L]

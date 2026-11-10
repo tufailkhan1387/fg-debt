@@ -6,6 +6,7 @@ import { policyLibraryService, type PolicyActor } from "./policy-library.service
 import {
   approveVersionSchema,
   archiveSchema,
+  categorySchema,
   createPolicySchema,
   editTextSchema,
   newVersionSchema,
@@ -55,6 +56,26 @@ function handle(fn: Handler) {
 export const policyLibraryController = {
   list: handle(async (req, res) => {
     res.json({ success: true, data: await policyLibraryService.list(actorOf(req)) });
+  }),
+
+  categories: handle(async (_req, res) => {
+    res.json({ success: true, data: { categories: await policyLibraryService.categories() } });
+  }),
+
+  createCategory: handle(async (req, res) => {
+    const { name } = parse(categorySchema, req.body);
+    res.status(201).json({ success: true, data: { categories: await policyLibraryService.createCategory(name, actorOf(req)) } });
+  }),
+
+  renameCategory: handle(async (req, res) => {
+    const { name } = parse(categorySchema, req.body);
+    const categories = await policyLibraryService.renameCategory(idParam(req.params.id), name, actorOf(req));
+    res.json({ success: true, data: { categories } });
+  }),
+
+  deleteCategory: handle(async (req, res) => {
+    const categories = await policyLibraryService.deleteCategory(idParam(req.params.id), actorOf(req));
+    res.json({ success: true, data: { categories } });
   }),
 
   get: handle(async (req, res) => {

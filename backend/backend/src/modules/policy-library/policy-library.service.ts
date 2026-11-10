@@ -17,8 +17,8 @@ import {
   toVersion,
 } from "./policy-library.helpers.js";
 import {
-  POLICY_CATEGORIES,
   type Policy,
+  type PolicyCategory,
   type PolicyAcknowledgement,
   type PolicyDetail,
   type PolicyRow,
@@ -263,7 +263,70 @@ export const policyLibraryService = {
   async list(actor: PolicyActor): Promise<{ policies: Policy[]; summary: PolicySummary; categories: readonly string[] }> {
     const rows = (await query<PolicyRow>(`SELECT ${POLICY_COLUMNS} FROM compliance_policies ORDER BY LOWER(title)`)).rows;
     const policies = await buildPolicies(rows, actor);
-    return { policies, summary: summarizePolicies(policies), categories: POLICY_CATEGORIES };
+    const categories = (await this.categories()).map((c) => c.name);
+    return { policies, summary: summarizePolicies(policies), categories };
+  },
+
+  async categories(): Promise<PolicyCategory[]> {
+    return (
+      await query<{ id: string; name: string; used_by: number }>(
+        `SELECT c.id, c.name, (SELECT COUNT(*)::int FROM compliance_policies p WHERE LOWER(p.category) = LOWER(c.name)) AS used_by
+         FROM compliance_policy_categories c ORDER BY LOWER(c.name)`,
+      )
+    ).rows.map((r) => ({ id: r.id, name: r.name, usedBy: r.used_by }));
+  },
+
+  async createCategory(name: string, actor: PolicyActor): Promise<PolicyCategory[]> {
+    try {
+      await query("INSERT INTO compliance_policy_categories (name) VALUES ($1)", [name]);
+    } catch (error) {
+      if ((error as { code?: string }).code === "23505") {
+        throw new AppError("This category already exists.", 409, "CATEGORY_CONFLICT");
+      }
+      throw error;
+    }
+    await log(actor, "policy.category_created", name);
+    return this.categories();
+  },
+
+  /** Renames a category and moves every entry that uses it to the new name. */
+  async renameCategory(id: string, name: string, actor: PolicyActor): Promise<PolicyCategory[]> {
+    const before = (await query<{ name: string }>("SELECT name FROM compliance_policy_categories WHERE id = $1", [id])).rows[0];
+    if (!before) throw new AppError("Category not found.", 404, "CATEGORY_NOT_FOUND");
+    if (before.name !== name) {
+      try {
+        await inTransaction(async (client) => {
+          await client.query("UPDATE compliance_policy_categories SET name = $2 WHERE id = $1", [id, name]);
+          await client.query(
+            "UPDATE compliance_policies SET category = $2, updated_by = $3, updated_at = NOW() WHERE LOWER(category) = LOWER($1)",
+            [before.name, name, actor.email],
+          );
+        });
+      } catch (error) {
+        if ((error as { code?: string }).code === "23505") {
+          throw new AppError("A category with this name already exists.", 409, "CATEGORY_CONFLICT");
+        }
+        throw error;
+      }
+      await log(actor, "policy.category_renamed", name, { from: before.name });
+    }
+    return this.categories();
+  },
+
+  /** Only an unused category can be deleted, so no entry is left without one. */
+  async deleteCategory(id: string, actor: PolicyActor): Promise<PolicyCategory[]> {
+    const category = (await this.categories()).find((c) => c.id === id);
+    if (!category) throw new AppError("Category not found.", 404, "CATEGORY_NOT_FOUND");
+    if (category.usedBy > 0) {
+      throw new AppError(
+        `"${category.name}" is used by ${category.usedBy === 1 ? "1 entry. Move it" : `${category.usedBy} entries. Move them`} to another category first.`,
+        400,
+        "CATEGORY_IN_USE",
+      );
+    }
+    await query("DELETE FROM compliance_policy_categories WHERE id = $1", [id]);
+    await log(actor, "policy.category_deleted", category.name);
+    return this.categories();
   },
 
   async get(id: string, actor: PolicyActor): Promise<PolicyDetail> {

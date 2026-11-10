@@ -215,6 +215,41 @@ export function useDeletePolicy() {
   });
 }
 
+export interface PolicyCategory {
+  id: string;
+  name: string;
+  /** How many entries (policies and procedures, archived included) use it. */
+  usedBy: number;
+}
+
+const CATEGORIES_KEY = ["compliance", "policy-categories"] as const;
+
+export function usePolicyCategories() {
+  return useQuery({
+    queryKey: CATEGORIES_KEY,
+    queryFn: () => apiRequest<{ categories: PolicyCategory[] }>(`${BASE}/categories`).then((r) => r.categories),
+  });
+}
+
+/** Add, rename or delete a category. A rename also moves the entries, so the policy list is refreshed too. */
+export function usePolicyCategoryMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (
+      change: { action: "create"; name: string } | { action: "rename"; id: string; name: string } | { action: "delete"; id: string },
+    ) => {
+      const path = change.action === "create" ? `${BASE}/categories` : `${BASE}/categories/${encodeURIComponent(change.id)}`;
+      const method = change.action === "create" ? "POST" : change.action === "rename" ? "PATCH" : "DELETE";
+      const body = change.action === "delete" ? undefined : { name: change.name };
+      return apiRequest<{ categories: PolicyCategory[] }>(path, { method, body }).then((r) => r.categories);
+    },
+    onSuccess: (categories) => {
+      queryClient.setQueryData(CATEGORIES_KEY, categories);
+      queryClient.invalidateQueries({ queryKey: ["compliance", "policies"] });
+    },
+  });
+}
+
 export function downloadPolicyVersion(version: PolicyVersion) {
   return downloadCsvExport(`${BASE}/versions/${encodeURIComponent(version.id)}/file`, version.fileName);
 }

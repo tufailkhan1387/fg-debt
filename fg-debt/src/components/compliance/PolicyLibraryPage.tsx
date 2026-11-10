@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { BookCheck, CalendarClock, ClipboardCheck, FileCheck2, FileUp, Loader2, Lock, Plus } from "lucide-react";
+import { BookCheck, CalendarClock, Check, ClipboardCheck, FileCheck2, FileUp, Loader2, Lock, Pencil, Plus, Tags, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -28,6 +28,8 @@ import {
   POLICY_FREQUENCY_LABELS,
   useCreatePolicy,
   usePolicies,
+  usePolicyCategories,
+  usePolicyCategoryMutation,
   POLICY_KIND_LABELS,
   type Policy,
   type PolicyKind,
@@ -56,6 +58,7 @@ export function PolicyLibraryPage({ kind = "policy" }: { kind?: PolicyKind }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
   const [addOpen, setAddOpen] = useState(false);
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
 
   const canEdit = me.data?.permissions?.["policies"] === "edit";
   const isPrincipal = me.data?.role === "principal";
@@ -107,9 +110,14 @@ export function PolicyLibraryPage({ kind = "policy" }: { kind?: PolicyKind }) {
           </p>
         </div>
         {canEdit && (
-          <Button onClick={() => setAddOpen(true)}>
-            <Plus className="size-4" /> Add {label}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => setCategoriesOpen(true)}>
+              <Tags className="size-4" /> Categories
+            </Button>
+            <Button onClick={() => setAddOpen(true)}>
+              <Plus className="size-4" /> Add {label}
+            </Button>
+          </div>
         )}
       </div>
 
@@ -203,7 +211,121 @@ export function PolicyLibraryPage({ kind = "policy" }: { kind?: PolicyKind }) {
           onCreated={(id) => navigate({ to: "/solicitor/fg-compliance/policies/$policyId", params: { policyId: id } })}
         />
       )}
+
+      {categoriesOpen && <ManageCategoriesDialog onClose={() => setCategoriesOpen(false)} />}
     </div>
+  );
+}
+
+/** Add, rename and delete categories. They are shared by the Policy Library and the Procedure Library. */
+function ManageCategoriesDialog({ onClose }: { onClose: () => void }) {
+  const { data: categories, isLoading } = usePolicyCategories();
+  const mutation = usePolicyCategoryMutation();
+  const [newName, setNewName] = useState("");
+  const [editing, setEditing] = useState<{ id: string; name: string } | null>(null);
+
+  const run = (change: Parameters<typeof mutation.mutate>[0], done: string, after?: () => void) =>
+    mutation.mutate(change, {
+      onSuccess: () => {
+        toast.success(done);
+        after?.();
+      },
+      onError: (error) => toast.error("Could not save the category", { description: errorMessage(error) }),
+    });
+
+  const add = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const name = newName.trim();
+    if (name) run({ action: "create", name }, "Category added.", () => setNewName(""));
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Categories</DialogTitle>
+          <DialogDescription>
+            Shared by policies and procedures. Renaming a category moves its entries too. A category in use cannot be
+            deleted.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={add} className="flex gap-2">
+          <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="New category" maxLength={60} />
+          <Button type="submit" disabled={!newName.trim() || mutation.isPending}>
+            <Plus className="size-4" /> Add
+          </Button>
+        </form>
+
+        {isLoading ? (
+          <div className="flex justify-center py-6 text-muted-foreground">
+            <Loader2 className="size-5 animate-spin" />
+          </div>
+        ) : (
+          <ul className="divide-y rounded-lg border">
+            {(categories ?? []).map((category) => (
+              <li key={category.id} className="flex items-center gap-2 px-3 py-2 text-sm">
+                {editing?.id === category.id ? (
+                  <form
+                    className="flex flex-1 items-center gap-2"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const name = editing.name.trim();
+                      if (name) run({ action: "rename", id: category.id, name }, "Category renamed.", () => setEditing(null));
+                    }}
+                  >
+                    <Input
+                      autoFocus
+                      value={editing.name}
+                      onChange={(e) => setEditing({ id: category.id, name: e.target.value })}
+                      maxLength={60}
+                      className="h-8"
+                    />
+                    <Button type="submit" size="icon" variant="ghost" className="size-8" disabled={mutation.isPending} aria-label="Save">
+                      <Check className="size-4" />
+                    </Button>
+                    <Button type="button" size="icon" variant="ghost" className="size-8" onClick={() => setEditing(null)} aria-label="Cancel">
+                      <X className="size-4" />
+                    </Button>
+                  </form>
+                ) : (
+                  <>
+                    <span className="flex-1">{category.name}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {category.usedBy ? `${category.usedBy} ${category.usedBy === 1 ? "entry" : "entries"}` : "Unused"}
+                    </span>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="size-8"
+                      onClick={() => setEditing({ id: category.id, name: category.name })}
+                      aria-label={`Rename ${category.name}`}
+                    >
+                      <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="size-8 text-destructive hover:text-destructive"
+                      disabled={category.usedBy > 0 || mutation.isPending}
+                      title={category.usedBy > 0 ? "In use. Move its entries to another category first." : undefined}
+                      onClick={() => run({ action: "delete", id: category.id }, `"${category.name}" deleted.`)}
+                      aria-label={`Delete ${category.name}`}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>Done</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

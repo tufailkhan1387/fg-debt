@@ -1,18 +1,10 @@
-export const POLICY_CATEGORIES = [
-  "Office Manual",
-  "Client Care",
-  "Complaints",
-  "Data Protection & Confidentiality",
-  "Anti-Money Laundering",
-  "Safeguarding",
-  "Risk Management",
-  "Business Continuity",
-  "IT & Information Security",
-  "People, Training & Supervision",
-  "Equality & Diversity",
-  "Finance",
-  "Other",
-] as const;
+/** A Policy Library category (stored in compliance_policy_categories, shared by policies and procedures). */
+export interface PolicyCategory {
+  id: string;
+  name: string;
+  /** How many entries (policies and procedures, archived included) use it. */
+  usedBy: number;
+}
 
 /** Whether a Policy Library entry is a policy or a procedure. */
 export const POLICY_KINDS = ["policy", "procedure"] as const;
