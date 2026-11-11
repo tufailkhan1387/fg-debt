@@ -26,7 +26,7 @@ import { ApiError } from "@/lib/api";
 import { getCurrentUser } from "@/lib/auth";
 import { useComplianceDashboard, type Dashboard, type SuggestedAction } from "@/lib/dashboard-api";
 import { useInsights } from "@/lib/insights-api";
-import { SOURCE_LABELS } from "@/lib/reminders-api";
+import { reminderSearch, SOURCE_LABELS } from "@/lib/reminders-api";
 
 const LEVEL_STYLES = {
   high: "bg-rose-500/15 text-rose-700 dark:text-rose-300",
@@ -269,7 +269,7 @@ export function ComplianceDashboardPage() {
               <ul className="divide-y">
                 {data.deadlines.items.slice(0, LIST_LIMIT).map((item) => (
                   <li key={item.key}>
-                    <Link to={to(item.link)} className="flex items-center justify-between gap-3 py-2.5 hover:bg-muted/40">
+                    <Link to={to(item.link)} search={reminderSearch(item) as never} className="flex items-center justify-between gap-3 py-2.5 hover:bg-muted/40">
                       <span className="min-w-0">
                         <span className="block truncate text-sm font-medium">{item.title}</span>
                         <span className="text-xs text-muted-foreground">{SOURCE_LABELS[item.source]}</span>

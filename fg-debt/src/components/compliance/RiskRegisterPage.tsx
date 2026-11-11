@@ -13,6 +13,7 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -113,6 +114,16 @@ export function RiskRegisterPage() {
         (!term || [risk.ref, risk.name, risk.category, risk.owner].some((v) => v.toLowerCase().includes(term))),
     );
   }, [register.data?.risks, filter, search]);
+
+  // Arriving from the calendar with ?risk=<id>: open that risk, then drop the param so closing stays closed.
+  const { risk: riskParam } = useSearch({ from: "/_solicitor/solicitor/fg-compliance/risks" });
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (!riskParam || !register.data) return;
+    const target = register.data.risks.find((r) => r.id === riskParam);
+    if (target) setEditing(target);
+    navigate({ to: "/solicitor/fg-compliance/risks", search: {}, replace: true });
+  }, [riskParam, register.data, navigate]);
 
   if (me.isLoading || register.isLoading) return <SolicitorDataLoading label="Loading risk register…" />;
 

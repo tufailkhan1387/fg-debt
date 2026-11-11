@@ -52,6 +52,14 @@ export interface ReminderItem {
   task: Task | null;
 }
 
+/** Search params that make "Open" land on the item itself (a risk opens its own edit window). */
+export function reminderSearch(item: Pick<ReminderItem, "key" | "source">): { risk?: string } {
+  if (item.source === "risk_review" || item.source === "risk_approval") {
+    return { risk: item.key.slice(item.key.indexOf(":") + 1) };
+  }
+  return {};
+}
+
 export interface ReminderSummary {
   overdue: number;
   dueSoon: number;

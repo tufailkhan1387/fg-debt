@@ -40,6 +40,7 @@ import { ApiError } from "@/lib/api";
 import { useComplianceMe } from "@/lib/compliance-access-api";
 import {
   RECURRENCE_LABELS,
+  reminderSearch,
   SOURCE_LABELS,
   useAddSuggestions,
   useCancelTask,
@@ -317,7 +318,7 @@ function Section({
                 )
               ) : (
                 <Button size="sm" variant="outline" asChild>
-                  <Link to={item.link as never}>
+                  <Link to={item.link as never} search={reminderSearch(item) as never}>
                     Open <ArrowUpRight className="size-4" />
                   </Link>
                 </Button>
