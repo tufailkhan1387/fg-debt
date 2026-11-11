@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, BookOpen, CheckCircle2, Download, FileCheck2, Link2, Loader2, Lock, Plus, Save, Trash2, TriangleAlert } from "lucide-react";
+import { ArrowLeft, BookOpen, CheckCircle2, Download, FileCheck2, Link2, ListChecks, Loader2, Lock, Plus, Save, Trash2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,6 +31,7 @@ import {
   useSqmPolicyOptions,
   useSqmRequirement,
   useUpdateRequirement,
+  type LinkedPolicy,
   type SqmEvidence,
   type SqmRequirementDetail,
   type SqmStatus,
@@ -43,7 +44,7 @@ function errorMessage(error: unknown) {
 export function SqmRequirementPage({ requirementId }: { requirementId: string }) {
   const me = useComplianceMe();
   const { data: req, isLoading, isError, error } = useSqmRequirement(requirementId);
-  const [dialog, setDialog] = useState<"policies" | "evidence" | "remove" | null>(null);
+  const [dialog, setDialog] = useState<"policies" | "procedures" | "evidence" | "remove" | null>(null);
 
   if (me.isLoading || isLoading) return <SolicitorDataLoading label="Loading requirement…" />;
   if (isError || !req) {
@@ -101,41 +102,8 @@ export function SqmRequirementPage({ requirementId }: { requirementId: string })
         <AssessmentCard req={req} canEdit={canEdit} />
 
         <div className="space-y-4">
-          <Card className="surface-card min-w-0">
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between gap-2">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <BookOpen className="size-4 text-muted-foreground" /> Written policy
-                </CardTitle>
-                {canEdit && (
-                  <Button size="sm" variant="outline" onClick={() => setDialog("policies")}>
-                    <Link2 className="size-4" /> Link policies
-                  </Button>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground">The policy or procedure that covers this requirement (from the Policy Library).</p>
-            </CardHeader>
-            <CardContent>
-              {req.policies.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No policy linked.</p>
-              ) : (
-                <ul className="space-y-1.5 text-sm">
-                  {req.policies.map((p) => (
-                    <li key={p.id} className="flex items-center justify-between gap-2">
-                      <Link to="/solicitor/fg-compliance/policies/$policyId" params={{ policyId: p.id }} className="truncate font-medium hover:underline">
-                        {p.title}
-                      </Link>
-                      <span
-                        className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-[0.7rem] font-semibold ${p.inForce ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" : "bg-amber-500/15 text-amber-700 dark:text-amber-300"}`}
-                      >
-                        {p.inForce ? "In force" : "Not in force"}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
+          <LinkedDocsCard req={req} kind="policy" canEdit={canEdit} onLink={() => setDialog("policies")} />
+          <LinkedDocsCard req={req} kind="procedure" canEdit={canEdit} onLink={() => setDialog("procedures")} />
 
           <Card className="surface-card min-w-0">
             <CardHeader className="pb-2">
@@ -168,7 +136,8 @@ export function SqmRequirementPage({ requirementId }: { requirementId: string })
         </div>
       </div>
 
-      {dialog === "policies" && <LinkPoliciesDialog req={req} onClose={() => setDialog(null)} />}
+      {dialog === "policies" && <LinkPoliciesDialog req={req} kind="policy" onClose={() => setDialog(null)} />}
+      {dialog === "procedures" && <LinkPoliciesDialog req={req} kind="procedure" onClose={() => setDialog(null)} />}
       {dialog === "evidence" && <AddEvidenceDialog requirementId={req.id} onClose={() => setDialog(null)} />}
       {dialog === "remove" && <RemoveDialog req={req} onClose={() => setDialog(null)} />}
     </div>
@@ -362,10 +331,73 @@ function AddEvidenceDialog({ requirementId, onClose }: { requirementId: string; 
   );
 }
 
-function LinkPoliciesDialog({ req, onClose }: { req: SqmRequirementDetail; onClose: () => void }) {
-  const { data: options, isLoading } = useSqmPolicyOptions(true);
+const KIND_TEXT = {
+  policy: { title: "Written policy", plural: "policies", library: "Policy Library", Icon: BookOpen },
+  procedure: { title: "Procedures", plural: "procedures", library: "Procedure Library", Icon: ListChecks },
+} as const;
+
+function LinkedDocsCard({
+  req,
+  kind,
+  canEdit,
+  onLink,
+}: {
+  req: SqmRequirementDetail;
+  kind: LinkedPolicy["kind"];
+  canEdit: boolean;
+  onLink: () => void;
+}) {
+  const text = KIND_TEXT[kind];
+  const linked = req.policies.filter((p) => p.kind === kind);
+  return (
+    <Card className="surface-card min-w-0">
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <text.Icon className="size-4 text-muted-foreground" /> {text.title}
+          </CardTitle>
+          {canEdit && (
+            <Button size="sm" variant="outline" onClick={onLink}>
+              <Link2 className="size-4" /> Link {text.plural}
+            </Button>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          The {kind === "policy" ? "policy" : "procedures"} that cover{kind === "policy" ? "s" : ""} this requirement (from the {text.library}).
+        </p>
+      </CardHeader>
+      <CardContent>
+        {linked.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No {kind} linked.</p>
+        ) : (
+          <ul className="space-y-1.5 text-sm">
+            {linked.map((p) => (
+              <li key={p.id} className="flex items-center justify-between gap-2">
+                <Link to="/solicitor/fg-compliance/policies/$policyId" params={{ policyId: p.id }} className="truncate font-medium hover:underline">
+                  {p.title}
+                </Link>
+                <span
+                  className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-[0.7rem] font-semibold ${p.inForce ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" : "bg-amber-500/15 text-amber-700 dark:text-amber-300"}`}
+                >
+                  {p.inForce ? "In force" : "Not in force"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function LinkPoliciesDialog({ req, kind, onClose }: { req: SqmRequirementDetail; kind: LinkedPolicy["kind"]; onClose: () => void }) {
+  const text = KIND_TEXT[kind];
+  const { data: allOptions, isLoading } = useSqmPolicyOptions(true);
+  const options = allOptions?.filter((p) => p.kind === kind);
   const update = useUpdateRequirement();
-  const [selected, setSelected] = useState(new Set(req.policies.map((p) => p.id)));
+  const [selected, setSelected] = useState(new Set(req.policies.filter((p) => p.kind === kind).map((p) => p.id)));
+  // Links of the other type are kept as they are.
+  const otherIds = req.policies.filter((p) => p.kind !== kind).map((p) => p.id);
 
   const toggle = (id: string, on: boolean) => {
     const next = new Set(selected);
@@ -378,13 +410,13 @@ function LinkPoliciesDialog({ req, onClose }: { req: SqmRequirementDetail; onClo
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Link policies</DialogTitle>
-          <DialogDescription>Choose the policies or procedures in the Policy Library that cover {req.ref}.</DialogDescription>
+          <DialogTitle>Link {text.plural}</DialogTitle>
+          <DialogDescription>Choose the {text.plural} in the {text.library} that cover {req.ref}.</DialogDescription>
         </DialogHeader>
         {isLoading ? (
-          <SolicitorDataLoading label="Loading policies…" />
+          <SolicitorDataLoading label={`Loading ${text.plural}…`} />
         ) : !options?.length ? (
-          <p className="text-sm text-muted-foreground">There are no policies in the library yet.</p>
+          <p className="text-sm text-muted-foreground">There are no {text.plural} in the {text.library} yet.</p>
         ) : (
           <div className="space-y-1">
             {options.map((p) => (
@@ -402,10 +434,10 @@ function LinkPoliciesDialog({ req, onClose }: { req: SqmRequirementDetail; onClo
             disabled={update.isPending}
             onClick={() =>
               update.mutate(
-                { id: req.id, policyIds: [...selected] },
+                { id: req.id, policyIds: [...otherIds, ...selected] },
                 {
                   onSuccess: () => {
-                    toast.success("Policies linked.");
+                    toast.success(kind === "policy" ? "Policies linked." : "Procedures linked.");
                     onClose();
                   },
                   onError: (error) => toast.error("Could not save", { description: errorMessage(error) }),

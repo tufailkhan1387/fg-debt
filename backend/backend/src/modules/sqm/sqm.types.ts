@@ -58,6 +58,8 @@ export interface SqmEvidence {
 export interface LinkedPolicy {
   id: string;
   title: string;
+  /** Policy Library entry type. */
+  kind: "policy" | "procedure";
   /** An approved version is in force and the policy is not archived. */
   inForce: boolean;
 }

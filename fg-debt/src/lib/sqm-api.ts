@@ -28,6 +28,7 @@ export const GAP_LABELS: Record<GapKind, string> = {
 export interface LinkedPolicy {
   id: string;
   title: string;
+  kind: "policy" | "procedure";
   inForce: boolean;
 }
 

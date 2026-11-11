@@ -73,8 +73,8 @@ async function build(rows: RequirementRow[]): Promise<SqmRequirement[]> {
   if (rows.length === 0) return [];
   const ids = rows.map((r) => r.id);
   const links = (
-    await query<{ requirement_id: string; id: string; title: string; in_force: boolean }>(
-      `SELECT l.requirement_id, p.id, p.title, (p.current_version_id IS NOT NULL AND NOT p.archived) AS in_force
+    await query<{ requirement_id: string; id: string; title: string; kind: LinkedPolicy["kind"]; in_force: boolean }>(
+      `SELECT l.requirement_id, p.id, p.title, p.kind, (p.current_version_id IS NOT NULL AND NOT p.archived) AS in_force
        FROM compliance_sqm_requirement_policies l JOIN compliance_policies p ON p.id = l.policy_id
        WHERE l.requirement_id = ANY($1::uuid[]) ORDER BY LOWER(p.title)`,
       [ids],
@@ -91,7 +91,7 @@ async function build(rows: RequirementRow[]): Promise<SqmRequirement[]> {
     .map((row) => {
       const policies: LinkedPolicy[] = links
         .filter((l) => l.requirement_id === row.id)
-        .map((l) => ({ id: l.id, title: l.title, inForce: l.in_force }));
+        .map((l) => ({ id: l.id, title: l.title, kind: l.kind, inForce: l.in_force }));
       const ev = evidence.find((e) => e.requirement_id === row.id);
       return toRequirement(row, policies, { count: ev?.count ?? 0, latest: ev?.latest ?? null });
     })
@@ -136,12 +136,12 @@ export const sqmService = {
   /** Policies that can be linked as the written policy behind a requirement. */
   async policyOptions(): Promise<LinkedPolicy[]> {
     const rows = (
-      await query<{ id: string; title: string; in_force: boolean }>(
-        `SELECT id, title, (current_version_id IS NOT NULL) AS in_force FROM compliance_policies
+      await query<{ id: string; title: string; kind: LinkedPolicy["kind"]; in_force: boolean }>(
+        `SELECT id, title, kind, (current_version_id IS NOT NULL) AS in_force FROM compliance_policies
          WHERE NOT archived ORDER BY LOWER(title)`,
       )
     ).rows;
-    return rows.map((r) => ({ id: r.id, title: r.title, inForce: r.in_force }));
+    return rows.map((r) => ({ id: r.id, title: r.title, kind: r.kind, inForce: r.in_force }));
   },
 
   async create(input: CreateRequirementInput, actor: SqmActor): Promise<SqmRequirementDetail> {

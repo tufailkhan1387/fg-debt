@@ -4,6 +4,7 @@ import { GAP_LABELS } from "./sqm.helpers.js";
 import {
   SQM_SECTIONS,
   SQM_STATUS_LABELS,
+  type LinkedPolicy,
   type SectionSummary,
   type SqmEvidence,
   type SqmImportRow,
@@ -265,6 +266,13 @@ function formatUk(iso: string | null) {
   return `${d}/${m}/${y}`;
 }
 
+function linkedTitles(linked: LinkedPolicy[], kind: LinkedPolicy["kind"]) {
+  return linked
+    .filter((p) => p.kind === kind)
+    .map((p) => `${p.title}${p.inForce ? "" : " (not in force)"}`)
+    .join("; ");
+}
+
 /** SQM readiness report with a full evidence index, as one workbook. */
 export async function buildReadinessWorkbook(
   sections: SectionSummary[],
@@ -316,6 +324,7 @@ export async function buildReadinessWorkbook(
     { header: "What it means", key: "meaning", width: 40 },
     { header: "Status", key: "status", width: 14 },
     { header: "Written policy", key: "policy", width: 36 },
+    { header: "Procedures", key: "procedure", width: 36 },
     { header: "Evidence items", key: "evidence", width: 10 },
     { header: "Latest evidence", key: "latest", width: 14 },
     { header: "Gaps", key: "gaps", width: 45 },
@@ -332,7 +341,8 @@ export async function buildReadinessWorkbook(
       requirement: r.requirement,
       meaning: r.meaning,
       status: SQM_STATUS_LABELS[r.status],
-      policy: r.policies.map((p) => `${p.title}${p.inForce ? "" : " (not in force)"}`).join("; "),
+      policy: linkedTitles(r.policies, "policy"),
+      procedure: linkedTitles(r.policies, "procedure"),
       evidence: r.evidenceCount,
       latest: formatUk(r.latestEvidenceDate),
       gaps: r.gaps.map((g) => GAP_LABELS[g]).join("; "),

@@ -15,9 +15,10 @@ Every push to `main` runs `.github/workflows/deploy.yml`, which:
 
 The server keeps `.env`, `uploads/` and `backups/` in `~/apps/fg-backend` between deploys.
 
-The web upload replaces everything in `~/public_html` (`rsync --delete`) except `backend/`, `.well-known/`,
-`cgi-bin/` and `cosguard.co.uk/`. Any other site or folder put in `public_html` must be added as an
-`--exclude` in `.github/workflows/deploy.yml`, or the next push deletes it.
+The web upload never deletes anything in `~/public_html` outside the app's own `assets/` folder. It adds or
+overwrites the app's files (`index.html`, favicons, `robots.txt`) and replaces `assets/`. Other sites and
+folders put in `public_html` (`cosguard.co.uk/`, `frantzgregory.co.uk/`, `backend/`, ...) are left as they are,
+with no exclude list to maintain. Do not name another site's folder `assets`.
 
 ## One-time setup
 

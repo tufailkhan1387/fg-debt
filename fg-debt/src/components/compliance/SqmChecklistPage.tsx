@@ -33,11 +33,17 @@ import {
   useRenameSection,
   useSqmOverview,
   type SectionSummary,
+  type LinkedPolicy,
   type SqmImportRow,
   type SqmRequirement,
   type SqmSectionLetter,
   type SqmStatus,
 } from "@/lib/sqm-api";
+
+function linkedTitles(linked: LinkedPolicy[], kind: LinkedPolicy["kind"]) {
+  const titles = linked.filter((p) => p.kind === kind).map((p) => `${p.title}${p.inForce ? "" : " (not in force)"}`);
+  return titles.length === 0 ? "—" : titles.join(", ");
+}
 
 type GapFilter = "all" | "no_evidence" | "policy_only" | "not_assessed" | "no_policy";
 
@@ -254,6 +260,7 @@ export function SqmChecklistPage() {
                     <TableHead className="text-xs font-semibold">Requirement</TableHead>
                     <TableHead className="text-xs font-semibold">Status</TableHead>
                     <TableHead className="text-xs font-semibold">Written policy</TableHead>
+                    <TableHead className="text-xs font-semibold">Procedures</TableHead>
                     <TableHead className="text-xs font-semibold">Evidence</TableHead>
                     <TableHead className="text-xs font-semibold">Responsible</TableHead>
                     <TableHead className="text-xs font-semibold">Review</TableHead>
@@ -262,7 +269,7 @@ export function SqmChecklistPage() {
                 <TableBody>
                   {requirements.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
+                      <TableCell colSpan={8} className="py-10 text-center text-sm text-muted-foreground">
                         No requirements match this view.
                       </TableCell>
                     </TableRow>
@@ -287,9 +294,8 @@ export function SqmChecklistPage() {
                         <TableCell>
                           <SqmStatusBadge status={r.status} />
                         </TableCell>
-                        <TableCell className="min-w-[8rem] text-muted-foreground">
-                          {r.policies.length === 0 ? "—" : r.policies.map((p) => `${p.title}${p.inForce ? "" : " (not in force)"}`).join(", ")}
-                        </TableCell>
+                        <TableCell className="min-w-[8rem] text-muted-foreground">{linkedTitles(r.policies, "policy")}</TableCell>
+                        <TableCell className="min-w-[8rem] text-muted-foreground">{linkedTitles(r.policies, "procedure")}</TableCell>
                         <TableCell className="whitespace-nowrap">
                           {r.evidenceCount === 0 ? (
                             <span className="text-muted-foreground">None</span>
