@@ -42,18 +42,6 @@ export const DEMO_USERS: Record<UserRole, UserProfile> = {
   },
 };
 
-/** Seeded solicitor demo credentials. */
-export const SOLICITOR_DEMO_CREDENTIALS = {
-  email: "solicitor@gmail.com",
-  password: "11223344",
-} as const;
-
-/** Seeded customer demo credentials. */
-export const CLIENT_DEMO_CREDENTIALS = {
-  email: "amelia.hartley@example.co.uk",
-  password: "11223344",
-} as const;
-
 const ROLE_KEY = "fg_debt_user_role";
 const TOKEN_KEY = "fg_debt_token";
 const USER_KEY = "fg_debt_user";

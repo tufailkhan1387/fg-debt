@@ -9,14 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { toast } from "sonner";
-import {
-  CLIENT_DEMO_CREDENTIALS,
-  roleDisplayLabel,
-  roleHomePath,
-  setSession,
-  SOLICITOR_DEMO_CREDENTIALS,
-  type UserProfile,
-} from "@/lib/auth";
+import { roleDisplayLabel, roleHomePath, setSession, type UserProfile } from "@/lib/auth";
 import { loginRequest, setupMfaAtLoginRequest, verifyMfaRequest } from "@/lib/auth-api";
 import { ApiError } from "@/lib/api";
 import { getClientLandingPath } from "@/lib/assessment-guard";
@@ -207,24 +200,6 @@ function LoginPage() {
       }
     >
       <div className="space-y-5">
-        <div className="rounded-xl border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground">
-          <p className="font-semibold text-foreground">Demo logins</p>
-          <p className="mt-1">
-            {COMPLIANCE_ONLY ? "Principal" : "Solicitor"}:{" "}
-            <span className="font-mono text-foreground">{SOLICITOR_DEMO_CREDENTIALS.email}</span>
-            {" / "}
-            <span className="font-mono text-foreground">{SOLICITOR_DEMO_CREDENTIALS.password}</span>
-          </p>
-          {!COMPLIANCE_ONLY && (
-            <p>
-              Customer:{" "}
-              <span className="font-mono text-foreground">{CLIENT_DEMO_CREDENTIALS.email}</span>
-              {" / "}
-              <span className="font-mono text-foreground">{CLIENT_DEMO_CREDENTIALS.password}</span>
-            </p>
-          )}
-        </div>
-
         <form onSubmit={submit} className="space-y-4" noValidate>
         <div className="space-y-1.5">
           <Label htmlFor="email">Email address</Label>
