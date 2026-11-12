@@ -36,9 +36,9 @@ export function nextOccurrence(dueIso: string, recurrence: Exclude<Recurrence, "
   return `${end.slice(0, 8)}${String(day).padStart(2, "0")}`;
 }
 
-export function urgencyOf(dueDate: string, today = todayIso()): Urgency {
+export function urgencyOf(dueDate: string, today = todayIso(), soonDays = DUE_SOON_DAYS): Urgency {
   if (dueDate < today) return "overdue";
-  return dueDate <= addDays(today, DUE_SOON_DAYS) ? "due_soon" : "upcoming";
+  return dueDate <= addDays(today, soonDays) ? "due_soon" : "upcoming";
 }
 
 export function toTask(row: TaskRow): Task {

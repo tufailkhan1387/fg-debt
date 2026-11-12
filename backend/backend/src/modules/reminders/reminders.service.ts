@@ -112,12 +112,14 @@ async function buildFeed(viewer: { userId: string; role: ComplianceRole; permiss
 
   if (hasAccess(viewer.permissions, "risks", "view")) {
     const risks = (
-      await query<{ id: string; ref: string; name: string; owner: string; next_review_date: string }>(
-        `SELECT id, ref, name, owner, next_review_date::text AS next_review_date FROM compliance_risks
+      await query<{ id: string; ref: string; name: string; owner: string; next_review_date: string; review_frequency: string }>(
+        `SELECT id, ref, name, owner, next_review_date::text AS next_review_date, review_frequency FROM compliance_risks
          WHERE status <> 'closed' AND next_review_date IS NOT NULL`,
       )
     ).rows;
     for (const r of risks) {
+      // A monthly review is always within 30 days of the last one, so a 30-day window would count it as
+      // "due soon" the moment it is reviewed. Monthly risks count as due soon only in their last week.
       items.push({
         key: `risk:${r.id}`,
         source: "risk_review",
@@ -125,7 +127,7 @@ async function buildFeed(viewer: { userId: string; role: ComplianceRole; permiss
         area: "Risk",
         owner: r.owner,
         dueDate: r.next_review_date,
-        urgency: urgencyOf(r.next_review_date),
+        urgency: urgencyOf(r.next_review_date, todayIso(), r.review_frequency === "monthly" ? DIGEST_WINDOW_DAYS : undefined),
         link: "/solicitor/fg-compliance/risks",
         task: null,
       });
