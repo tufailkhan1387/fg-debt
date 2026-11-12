@@ -19,6 +19,6 @@ export function useSystemStatus() {
 
 export function useSendTestEmail() {
   return useMutation({
-    mutationFn: () => apiRequest<{ status: "sent" | "logged" }>("/api/compliance/system/test-email", { method: "POST" }),
+    mutationFn: () => apiRequest<{ status: "sent" | "logged"; to: string }>("/api/compliance/system/test-email", { method: "POST" }),
   });
 }

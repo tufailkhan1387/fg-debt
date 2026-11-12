@@ -48,7 +48,7 @@ function SystemStatus() {
             testEmail.mutate(undefined, {
               onSuccess: (r) =>
                 r.status === "sent"
-                  ? toast.success("Test email sent. Check your inbox.")
+                  ? toast.success(`Test email sent to ${r.to}.`)
                   : toast.warning("No mail server is set, so the test email was written to the server log instead."),
               onError: (error) => toast.error("Test email failed", { description: error instanceof ApiError ? error.message : "Please try again." }),
             })

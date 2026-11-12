@@ -5,6 +5,9 @@ import { isMailConfigured, sendMail } from "../../utils/mailer.js";
 import { backupsService } from "../backups/backups.service.js";
 import { recordAccessLog } from "../compliance-access/access-log.js";
 
+/** "Send test email" on the System page always goes to this address. */
+const TEST_EMAIL_TO = "tufailkhan5093@gmail.com";
+
 export type CheckState = "ok" | "warning" | "problem" | "pending";
 
 export interface SystemCheck {
@@ -104,15 +107,15 @@ export const systemService = {
     return { production, checks };
   },
 
-  /** Sends a test email to the person asking, to confirm the mail settings work. */
+  /** Sends a test email to the fixed test address, to confirm the mail settings work. */
   async sendTestEmail(actor: { userId: string; email: string; ip?: string | null }) {
     const status = await sendMail({
-      to: actor.email,
+      to: TEST_EMAIL_TO,
       subject: "FG Compliance test email",
-      text: "This is a test email from FG Compliance. Reminder emails will be delivered to this address.",
-      html: "<p>This is a test email from FG Compliance. Reminder emails will be delivered to this address.</p>",
+      text: `This is a test email from FG Compliance, sent by ${actor.email}. The mail settings are working.`,
+      html: `<p>This is a test email from FG Compliance, sent by ${actor.email}. The mail settings are working.</p>`,
     });
-    await recordAccessLog({ userId: actor.userId, userEmail: actor.email, action: "system.test_email", entityType: "system", entityId: actor.email, details: { status }, ip: actor.ip ?? null });
-    return { status };
+    await recordAccessLog({ userId: actor.userId, userEmail: actor.email, action: "system.test_email", entityType: "system", entityId: TEST_EMAIL_TO, details: { status }, ip: actor.ip ?? null });
+    return { status, to: TEST_EMAIL_TO };
   },
 };
