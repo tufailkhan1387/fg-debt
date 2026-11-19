@@ -6,11 +6,14 @@ export interface Backup {
   name: string;
   createdAt: string;
   createdBy: string;
-  trigger: "scheduled" | "manual";
+  /** pre_restore: taken automatically just before a restore, so the restore can be undone. */
+  trigger: "scheduled" | "manual" | "pre_restore";
   sizeBytes: number;
   tables: number;
   rows: number;
   files: number;
+  /** Rows per table; older backups get this when first checked. */
+  contents?: Array<{ name: string; rows: number }>;
   verifiedAt: string | null;
   verifiedOk: boolean | null;
 }
@@ -39,6 +42,29 @@ export function useTakeBackup() {
 
 export function useVerifyBackup() {
   return useBackupMutation((name: string) => apiRequest<{ backup: Backup }>(`${BASE}/${encodeURIComponent(name)}/verify`, { method: "POST" }));
+}
+
+export function useDeleteBackup() {
+  return useBackupMutation((name: string) => apiRequest<{ removed: true }>(`${BASE}/${encodeURIComponent(name)}`, { method: "DELETE" }));
+}
+
+export interface RestoreResult {
+  tables: number;
+  rows: number;
+  files: number;
+  filesSkipped: number;
+  restoredFrom: string;
+  safetyBackup: string;
+}
+
+/** Every record changes, so every cached page is refreshed afterwards. */
+export function useRestoreBackup() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) =>
+      apiRequest<RestoreResult>(`${BASE}/${encodeURIComponent(name)}/restore`, { method: "POST", body: { confirm: "RESTORE" } }),
+    onSettled: () => queryClient.invalidateQueries(),
+  });
 }
 
 export function downloadBackup(name: string) {

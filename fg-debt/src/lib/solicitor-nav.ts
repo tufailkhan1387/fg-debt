@@ -60,7 +60,10 @@ export type SolicitorNavItem = {
   icon: LucideIcon;
   /** When set, link opens a matter review tab instead of a standalone page */
   reviewTab?: string;
-  /** FG Compliance access the page needs: the Principal, or a module permission (view or edit). Others see it hidden. */
+  /**
+   * FG Compliance access the page needs: "principal", a module id (any access to it), or "module:full".
+   * Others see it hidden.
+   */
   access?: "principal" | string;
 };
 
@@ -84,11 +87,11 @@ const fullSolicitorNav: SolicitorNavGroup[] = [
     group: "FG Compliance",
     items: [
       { to: "/solicitor/fg-compliance", label: "Dashboard", icon: LayoutGrid },
-      { to: "/solicitor/fg-compliance/assistant", label: "AI Assistant", icon: Bot, access: "principal" },
-      { to: "/solicitor/fg-compliance/insights", label: "AI Analysis", icon: Sparkles, access: "principal" },
+      { to: "/solicitor/fg-compliance/assistant", label: "AI Assistant", icon: Bot, access: "assistant" },
+      { to: "/solicitor/fg-compliance/insights", label: "AI Analysis", icon: Sparkles, access: "insights" },
       { to: "/solicitor/fg-compliance/calendar", label: "Compliance Calendar", icon: CalendarDays, access: "reminders" },
       { to: "/solicitor/fg-compliance/sqm", label: "SQM Checklist", icon: ClipboardCheck, access: "sqm" },
-      { to: "/solicitor/fg-compliance/audit-pack", label: "SQM Audit Pack", icon: Archive, access: "principal" },
+      { to: "/solicitor/fg-compliance/audit-pack", label: "SQM Audit Pack", icon: Archive, access: "audit_pack" },
       { to: "/solicitor/fg-compliance/ai-review", label: "AI Document Review", icon: Sparkles, access: "documents" },
       { to: "/solicitor/fg-compliance/policies", label: "Policy Library", icon: BookOpen, access: "policies" },
       { to: "/solicitor/fg-compliance/procedures", label: "Procedure Library", icon: ClipboardList, access: "policies" },
@@ -96,14 +99,14 @@ const fullSolicitorNav: SolicitorNavGroup[] = [
       { to: "/solicitor/fg-compliance/registers", label: "Compliance Registers", icon: TableProperties, access: "registers" },
       { to: "/solicitor/fg-compliance/file-reviews", label: "File Reviews", icon: FileSearch, access: "file_reviews" },
       { to: "/solicitor/fg-compliance/training", label: "Staff Training", icon: UserCheck, access: "training" },
-      { to: "/solicitor/fg-compliance/performance-evaluation", label: "Performance Evaluation", icon: Star, access: "principal" },
+      { to: "/solicitor/fg-compliance/performance-evaluation", label: "Performance Evaluation", icon: Star, access: "training:full" },
       { to: "/solicitor/fg-compliance/business", label: "Financial & Business", icon: PiggyBank, access: "business" },
       { to: "/solicitor/fg-compliance/reports", label: "Reports", icon: FileText },
-      { to: "/solicitor/fg-compliance/users", label: "Users & Access", icon: Users, access: "principal" },
-      { to: "/solicitor/fg-compliance/access-log", label: "Access Log", icon: History, access: "principal" },
-      { to: "/solicitor/fg-compliance/backups", label: "Backups", icon: DatabaseBackup, access: "principal" },
-      { to: "/solicitor/fg-compliance/data", label: "Export & Delete Data", icon: HardDriveDownload, access: "principal" },
-      { to: "/solicitor/fg-compliance/system", label: "System Status", icon: Activity, access: "principal" },
+      { to: "/solicitor/fg-compliance/users", label: "Users & Access", icon: Users, access: "users" },
+      { to: "/solicitor/fg-compliance/access-log", label: "Access Log", icon: History, access: "access_log" },
+      { to: "/solicitor/fg-compliance/backups", label: "Backups", icon: DatabaseBackup, access: "backups" },
+      { to: "/solicitor/fg-compliance/data", label: "Export & Delete Data", icon: HardDriveDownload, access: "firm_data" },
+      { to: "/solicitor/fg-compliance/system", label: "System Status", icon: Activity, access: "system" },
       { to: "/solicitor/fg-compliance/security", label: "Two-Factor Security", icon: KeyRound },
     ],
   },

@@ -4,9 +4,10 @@ import { env } from "../../config/env.js";
 import { pool } from "../../db/pool.js";
 import { AppError } from "../../middleware/appError.js";
 import { recordAccessLog } from "../compliance-access/access-log.js";
-import { buildBackup, openBackup, type BackupManifest } from "./backup-archive.js";
+import { buildBackup, openBackup, restoreBackup, type BackupManifest } from "./backup-archive.js";
 
-export type BackupTrigger = "scheduled" | "manual";
+/** "pre_restore": the copy of the live data taken automatically just before a restore, so a restore can be undone. */
+export type BackupTrigger = "scheduled" | "manual" | "pre_restore";
 
 /** Kept beside each backup (not encrypted): counts only, so the list can be shown without opening every backup. */
 interface BackupSummary {
@@ -18,6 +19,8 @@ interface BackupSummary {
   tables: number;
   rows: number;
   files: number;
+  /** Rows per table. Older backups get this the first time they are checked. */
+  contents?: Array<{ name: string; rows: number }>;
   verifiedAt: string | null;
   verifiedOk: boolean | null;
 }
@@ -106,7 +109,7 @@ export const backupsService = {
   },
 
   /** Takes a backup now. Only one runs at a time (across servers too, through a database lock). */
-  async create(trigger: BackupTrigger, actor: Actor = SYSTEM): Promise<BackupSummary> {
+  async create(trigger: BackupTrigger, actor: Actor = SYSTEM, options: { prune?: boolean } = {}): Promise<BackupSummary> {
     if (running) throw new AppError("A backup is already being taken. Try again in a minute.", 409, "BACKUP_RUNNING");
     running = true;
     const client = await pool.connect();
@@ -123,7 +126,7 @@ export const backupsService = {
         await fs.rename(`${target}.part`, target);
         const summary = summaryOf(name, manifest, trigger, buffer.length);
         await writeSummary(summary);
-        await this.prune();
+        if (options.prune !== false) await this.prune();
         await log(actor, "backup.created", name, { trigger, sizeBytes: buffer.length, tables: summary.tables, rows: summary.rows, files: summary.files });
         return summary;
       } finally {
@@ -163,6 +166,48 @@ export const backupsService = {
     return buffer;
   },
 
+  /** Removes a backup and its summary for good. */
+  async remove(name: string, actor: Actor) {
+    const file = fileFor(name);
+    const exists = await fs.stat(file).then(() => true, () => false);
+    if (!exists) throw new AppError("Backup not found.", 404, "BACKUP_NOT_FOUND");
+    if (running) throw new AppError("A backup or restore is running. Try again in a minute.", 409, "BACKUP_RUNNING");
+    await fs.rm(file, { force: true });
+    await fs.rm(`${file}.json`, { force: true });
+    await log(actor, "backup.deleted", name);
+  },
+
+  /**
+   * Puts every record and document back as it was in the backup. A backup of the current data is taken first
+   * (kept even beyond the usual limit), so the restore itself can be undone by restoring that one.
+   * The access log is never emptied: it keeps today's entries and gains any from the backup it was missing.
+   */
+  async restore(name: string, actor: Actor) {
+    const buffer = await fs.readFile(fileFor(name)).catch(() => {
+      throw new AppError("Backup not found.", 404, "BACKUP_NOT_FOUND");
+    });
+    const opened = await openBackup(buffer);
+    const safety = await this.create("pre_restore", actor, { prune: false });
+
+    if (running) throw new AppError("A backup is already being taken. Try again in a minute.", 409, "BACKUP_RUNNING");
+    running = true;
+    const client = await pool.connect();
+    try {
+      const locked = (await client.query<{ ok: boolean }>("SELECT pg_try_advisory_lock(hashtext('fg-compliance-backup')) AS ok")).rows[0]?.ok;
+      if (!locked) throw new AppError("A backup is already being taken. Try again in a minute.", 409, "BACKUP_RUNNING");
+      try {
+        const result = await restoreBackup(client, opened, { replace: true, keep: ["compliance_audit_log"] });
+        await log(actor, "backup.restored", name, { backupTakenAt: opened.manifest.createdAt, safetyBackup: safety.name, ...result });
+        return { ...result, restoredFrom: opened.manifest.createdAt, safetyBackup: safety.name };
+      } finally {
+        await client.query("SELECT pg_advisory_unlock(hashtext('fg-compliance-backup'))");
+      }
+    } finally {
+      client.release();
+      running = false;
+    }
+  },
+
   /** Keeps the newest backups (BACKUP_KEEP); older ones and their summaries are removed. */
   async prune() {
     const names = (await fs.readdir(env.backups.dir)).filter((n) => NAME.test(n)).sort().reverse();
@@ -199,6 +244,7 @@ function summaryOf(name: string, manifest: BackupManifest, trigger: BackupTrigge
     tables: manifest.tables.length,
     rows: manifest.tables.reduce((s, t) => s + t.rows, 0),
     files: manifest.files.length,
+    contents: manifest.tables.map((t) => ({ name: t.name, rows: t.rows })),
     verifiedAt: null,
     verifiedOk: null,
   };

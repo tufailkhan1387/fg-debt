@@ -37,7 +37,7 @@ import { SolicitorStatCard } from "@/components/solicitor/SolicitorStatCard";
 import { SolicitorDataLoading } from "@/components/solicitor/SolicitorDataStates";
 import { formatDate } from "@/components/compliance/policy-badges";
 import { ApiError } from "@/lib/api";
-import { useComplianceMe } from "@/lib/compliance-access-api";
+import { hasFullAccess, useComplianceMe } from "@/lib/compliance-access-api";
 import {
   RECURRENCE_LABELS,
   reminderSearch,
@@ -98,7 +98,8 @@ export function ComplianceCalendarPage() {
   const [dialog, setDialog] = useState<{ type: "add" } | { type: "edit" | "complete" | "cancel"; task: Task } | { type: "suggestions" } | null>(null);
 
   const canEdit = me.data?.permissions?.["reminders"] === "edit";
-  const isPrincipal = me.data?.role === "principal";
+  // The Principal, or full access to this area.
+  const isPrincipal = hasFullAccess(me.data, "reminders");
 
   const items = useMemo(() => {
     const sources = SOURCE_FILTERS.find((f) => f.value === sourceFilter)?.sources ?? [];
@@ -156,7 +157,8 @@ export function ComplianceCalendarPage() {
           <h1 className="text-2xl font-display font-bold tracking-tight text-foreground sm:text-3xl">Compliance Calendar</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             Every compliance deadline in one place: your recurring activities, policy and risk review dates, and items
-            waiting for approval. Overdue items stay here until they are completed.
+            waiting for approval. Overdue items stay here until they are completed. Completed tasks and reviews are
+            under Done; a reviewed policy or risk comes back here when its next review falls due.
           </p>
         </div>
         {canEdit && (
@@ -398,7 +400,7 @@ function HistoryTable() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="text-xs font-semibold">Task</TableHead>
+              <TableHead className="text-xs font-semibold">Task or review</TableHead>
               <TableHead className="text-xs font-semibold">Was due</TableHead>
               <TableHead className="text-xs font-semibold">Outcome</TableHead>
               <TableHead className="text-xs font-semibold">Note</TableHead>
@@ -413,7 +415,8 @@ function HistoryTable() {
               </TableRow>
             ) : (
               data.map((task) => {
-                const late = task.status === "completed" && task.completedAt && task.completedAt.slice(0, 10) > task.dueDate;
+                // Reviews logged before the due date was recorded have no due date, so no on time / late.
+                const late = task.status === "completed" && task.dueDate && task.completedAt && task.completedAt.slice(0, 10) > task.dueDate;
                 return (
                   <TableRow key={task.id} className="align-top text-xs">
                     <TableCell className="min-w-[14rem]">
@@ -423,7 +426,7 @@ function HistoryTable() {
                     <TableCell className="whitespace-nowrap">{formatDate(task.dueDate)}</TableCell>
                     <TableCell className="whitespace-nowrap">
                       <span className={task.status === "cancelled" ? "text-muted-foreground" : late ? "text-amber-700 dark:text-amber-300" : "text-emerald-700 dark:text-emerald-300"}>
-                        {task.status === "cancelled" ? "Cancelled" : late ? "Done late" : "Done on time"}
+                        {task.status === "cancelled" ? "Cancelled" : late ? "Done late" : task.dueDate ? "Done on time" : "Done"}
                       </span>
                       <div className="text-muted-foreground">
                         {formatDate(task.completedAt)} · {task.completedBy}

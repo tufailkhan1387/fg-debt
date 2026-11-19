@@ -45,7 +45,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { SolicitorDataLoading } from "@/components/solicitor/SolicitorDataStates";
 import { formatDate, ReviewBadge, VersionBadge } from "@/components/compliance/policy-badges";
 import { ApiError } from "@/lib/api";
-import { useComplianceMe } from "@/lib/compliance-access-api";
+import { hasFullAccess, useComplianceMe } from "@/lib/compliance-access-api";
 import {
   downloadPolicyVersion,
   POLICY_FREQUENCY_LABELS,
@@ -104,7 +104,8 @@ export function PolicyDetailPage({ policyId }: { policyId: string }) {
   }
 
   const canEdit = me.data?.permissions?.["policies"] === "edit";
-  const isPrincipal = me.data?.role === "principal";
+  // The Principal, or full access to this area.
+  const isPrincipal = hasFullAccess(me.data, "policies");
   const busy = acknowledge.isPending || review.isPending || archive.isPending;
 
   return (

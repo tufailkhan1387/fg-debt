@@ -146,12 +146,31 @@ async function getRow(id: string): Promise<ReviewRow> {
   return row;
 }
 
-/** Drafts are changed by the person who started them or by the Principal. */
-function assertCanChangeDraft(row: ReviewRow, actor: RegisterActor) {
-  if (row.status !== "draft") throw new AppError("This review has been completed and can no longer be changed.", 409, "FILE_REVIEW_COMPLETED");
-  if (actor.role !== "principal" && row.created_by_id !== actor.userId) {
+/** A review is changed by the person who started it or by the Principal, before and after completion. */
+function canChange(row: ReviewRow, actor: RegisterActor) {
+  return actor.role === "principal" || row.created_by_id === actor.userId;
+}
+
+function assertCanChange(row: ReviewRow, actor: RegisterActor) {
+  if (!canChange(row, actor)) {
     throw new AppError("Only the person who started this review or the Principal can change it.", 403, "FORBIDDEN");
   }
+}
+
+function assertCanChangeDraft(row: ReviewRow, actor: RegisterActor) {
+  if (row.status !== "draft") throw new AppError("This review has already been completed.", 409, "FILE_REVIEW_COMPLETED");
+  assertCanChange(row, actor);
+}
+
+/** Drafts can be deleted by whoever may change them; a completed review also removes register entries, so only the Principal. */
+function canDelete(row: ReviewRow, actor: RegisterActor) {
+  return row.status === "draft" ? canChange(row, actor) : actor.role === "principal";
+}
+
+/** "Key findings" in the File reviews register: the overall findings, then each question answered "No". */
+function keyFindingsOf(findings: string, checklist: Array<{ answer: Answer | null; question: string; comment: string }>) {
+  const issues = checklist.filter((c) => c.answer === "no");
+  return [findings.trim(), ...issues.map((c) => `No: ${c.question}${c.comment ? ` — ${c.comment}` : ""}`)].filter(Boolean).join("\n").slice(0, 5000);
 }
 
 function isDone(entry: RegisterEntry) {
@@ -262,7 +281,8 @@ export const fileReviewsService = {
         .filter((e): e is RegisterEntry => !!e),
       registerEntryId: row.register_entry_id,
       completedBy: row.completed_by,
-      canChange: row.status === "draft" && (actor.role === "principal" || row.created_by_id === actor.userId),
+      canChange: canChange(row, actor),
+      canDelete: canDelete(row, actor),
     };
   },
 
@@ -272,6 +292,7 @@ export const fileReviewsService = {
     actor: RegisterActor,
   ) {
     const row = await getRow(id);
+    if (row.status === "completed") return this.saveCompleted(row, input, actor);
     assertCanChangeDraft(row, actor);
     await query(
       `UPDATE compliance_file_reviews SET matter_ref = $2, matter_type = $3, fee_earner = $4, reviewer = $5, review_date = $6,
@@ -295,6 +316,61 @@ export const fileReviewsService = {
   },
 
   /**
+   * Corrects a completed review: header, answers, comments and findings. The File reviews register entry is updated to
+   * match. Corrective actions already live in their own register, so they are changed there, not here.
+   */
+  async saveCompleted(
+    row: ReviewRow,
+    input: Partial<ReviewHeader> & { answers?: Array<{ questionId: string; answer: Answer | null; comment: string }>; findings?: string },
+    actor: RegisterActor,
+  ) {
+    assertCanChange(row, actor);
+    const changes = new Map((input.answers ?? []).map((a) => [a.questionId, a]));
+    const answers = row.answers.map((a) => {
+      const change = changes.get(a.questionId);
+      return change ? { ...a, answer: change.answer, comment: change.comment } : a;
+    });
+    const unanswered = answers.filter((a) => a.answer === null).length;
+    if (unanswered) throw new AppError(`A completed review must answer every question (${unanswered} left).`, 400, "CHECKLIST_INCOMPLETE");
+
+    const next = {
+      matterRef: input.matterRef ?? row.matter_ref,
+      matterType: input.matterType ?? row.matter_type,
+      feeEarner: input.feeEarner ?? row.fee_earner,
+      reviewer: input.reviewer ?? row.reviewer,
+      reviewDate: input.reviewDate ?? row.review_date,
+      findings: input.findings ?? row.findings,
+    };
+    const issues = answers.filter((a) => a.answer === "no").length;
+
+    await query(
+      `UPDATE compliance_file_reviews SET matter_ref = $2, matter_type = $3, fee_earner = $4, reviewer = $5, review_date = $6,
+         answers = $7, findings = $8, updated_by = $9, updated_at = NOW()
+       WHERE id = $1`,
+      [row.id, next.matterRef, next.matterType, next.feeEarner, next.reviewer, next.reviewDate, JSON.stringify(answers), next.findings, actor.email],
+    );
+    if (row.register_entry_id) {
+      await registersService.update(
+        row.register_entry_id,
+        {
+          data: {
+            reviewDate: next.reviewDate,
+            fileReference: next.matterRef,
+            matterType: next.matterType,
+            reviewer: next.reviewer,
+            keyFindings: keyFindingsOf(next.findings, answers.map((a) => ({ answer: a.answer, question: a.question ?? "", comment: a.comment }))),
+            responsible: next.feeEarner,
+            issuesIdentified: issues || row.action_entry_ids.length ? "Yes" : "No",
+          },
+        },
+        actor,
+      );
+    }
+    await log(actor, "file_review.edited", label({ register_ref: row.register_ref, matter_ref: next.matterRef }));
+    return this.get(row.id, actor);
+  },
+
+  /**
    * Completes the review: every question must be answered. The review is added to the "File reviews" register
    * and each action to the "Corrective actions" register, where deadlines and completion are tracked.
    */
@@ -307,7 +383,6 @@ export const fileReviewsService = {
     if (unanswered) throw new AppError(`Answer every question first (${unanswered} left).`, 400, "CHECKLIST_INCOMPLETE");
 
     const issues = checklist.filter((c) => c.answer === "no");
-    const keyFindings = [row.findings.trim(), ...issues.map((c) => `No: ${c.question}${c.comment ? ` — ${c.comment}` : ""}`)].filter(Boolean).join("\n");
     const today = todayIso();
 
     const client = await pool.connect();
@@ -327,7 +402,7 @@ export const fileReviewsService = {
           fileReference: row.matter_ref,
           matterType: row.matter_type,
           reviewer: row.reviewer,
-          keyFindings: keyFindings.slice(0, 5000),
+          keyFindings: keyFindingsOf(row.findings, checklist),
           responsible: row.fee_earner,
           issuesIdentified: issues.length || row.actions.length ? "Yes" : "No",
           actionRequired: row.actions.map((a) => `- ${a.action}`).join("\n").slice(0, 5000),
@@ -389,12 +464,38 @@ export const fileReviewsService = {
     return this.get(id, actor);
   },
 
-  /** Drafts only; a completed review is part of the record. */
-  async removeDraft(id: string, actor: RegisterActor) {
+  /** Deletes a draft, or (Principal only) a completed review with its File reviews and Corrective actions register entries. */
+  async remove(id: string, actor: RegisterActor) {
     const row = await getRow(id);
-    assertCanChangeDraft(row, actor);
-    await query("DELETE FROM compliance_file_reviews WHERE id = $1 AND status = 'draft'", [id]);
-    await log(actor, "file_review.draft_deleted", label(row));
+    if (!canDelete(row, actor)) {
+      throw new AppError(
+        row.status === "draft"
+          ? "Only the person who started this review or the Principal can delete it."
+          : "Only the Principal can delete a completed review.",
+        403,
+        "FORBIDDEN",
+      );
+    }
+    if (row.status === "draft") {
+      await query("DELETE FROM compliance_file_reviews WHERE id = $1 AND status = 'draft'", [id]);
+      await log(actor, "file_review.draft_deleted", label(row));
+      return;
+    }
+
+    const entryIds = [row.register_entry_id, ...row.action_entry_ids].filter((v): v is string => !!v);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("DELETE FROM compliance_file_reviews WHERE id = $1", [id]);
+      if (entryIds.length) await client.query("DELETE FROM compliance_register_entries WHERE id = ANY($1::uuid[])", [entryIds]);
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+    await log(actor, "file_review.deleted", label(row), { removedRegisterEntries: entryIds.length });
   },
 
   async report(id: string, actor: RegisterActor): Promise<{ buffer: Buffer; fileName: string }> {

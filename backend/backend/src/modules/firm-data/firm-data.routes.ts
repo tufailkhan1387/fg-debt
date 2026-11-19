@@ -32,13 +32,14 @@ function handle(fn: (req: Request, res: Response) => Promise<void>) {
 export const firmDataRouter = Router();
 
 // Export and deletion cover every area, so both are the Principal's alone.
-const principal = requireCompliance("principal");
+const canView = requireCompliance("firm_data");
+const full = requireCompliance("firm_data", "full");
 
-firmDataRouter.get("/summary", authenticate, principal, handle(async (req, res) => {
+firmDataRouter.get("/summary", authenticate, canView, handle(async (req, res) => {
   res.json({ success: true, data: await firmDataService.summary(actorOf(req)) });
 }));
 
-firmDataRouter.post("/export", authenticate, principal, handle(async (req, res) => {
+firmDataRouter.post("/export", authenticate, full, handle(async (req, res) => {
   const file = await firmDataService.exportAll(actorOf(req));
   res.setHeader("Content-Type", "application/zip");
   res.setHeader("Content-Disposition", `attachment; filename="${file.fileName}"`);
@@ -46,7 +47,7 @@ firmDataRouter.post("/export", authenticate, principal, handle(async (req, res) 
   res.send(file.buffer);
 }));
 
-firmDataRouter.post("/delete", authenticate, principal, handle(async (req, res) => {
+firmDataRouter.post("/delete", authenticate, full, handle(async (req, res) => {
   const parsed = deleteSchema.safeParse(req.body ?? {});
   if (!parsed.success) throw new AppError(parsed.error.issues[0]?.message ?? "Invalid request.", 400, "VALIDATION_ERROR");
   res.json({ success: true, data: await firmDataService.deleteAll(parsed.data, actorOf(req)) });

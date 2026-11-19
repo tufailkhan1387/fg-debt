@@ -8,7 +8,8 @@ export const policyLibraryRouter = Router();
 
 const canView = requireCompliance("policies", "view");
 const canEdit = requireCompliance("policies", "edit");
-const principal = requireCompliance("principal");
+// The Principal, or anyone given full access to this area.
+const principal = requireCompliance("policies", "full");
 const upload = policyDocumentUploadMiddleware.single("file");
 
 policyLibraryRouter.get("/", authenticate, canView, c.list);

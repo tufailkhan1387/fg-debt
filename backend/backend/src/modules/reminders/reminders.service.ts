@@ -90,12 +90,15 @@ async function buildFeed(viewer: { userId: string; role: ComplianceRole; permiss
 
   if (hasAccess(viewer.permissions, "policies", "view")) {
     const policies = (
-      await query<{ id: string; title: string; owner: string; next_review_date: string }>(
-        `SELECT id, title, owner, next_review_date::text AS next_review_date FROM compliance_policies
+      await query<{ id: string; title: string; owner: string; next_review_date: string; last_reviewed_at: string | null }>(
+        `SELECT id, title, owner, next_review_date::text AS next_review_date, last_reviewed_at::text AS last_reviewed_at FROM compliance_policies
          WHERE NOT archived AND current_version_id IS NOT NULL AND next_review_date IS NOT NULL`,
       )
     ).rows;
     for (const p of policies) {
+      const urgency = urgencyOf(p.next_review_date);
+      // Once reviewed, the next review stays off the calendar until it falls due (the review itself is under Done).
+      if (p.last_reviewed_at && urgency === "upcoming") continue;
       items.push({
         key: `policy:${p.id}`,
         source: "policy_review",
@@ -103,7 +106,7 @@ async function buildFeed(viewer: { userId: string; role: ComplianceRole; permiss
         area: "Policies",
         owner: p.owner,
         dueDate: p.next_review_date,
-        urgency: urgencyOf(p.next_review_date),
+        urgency,
         link: `/solicitor/fg-compliance/policies/${p.id}`,
         task: null,
       });
@@ -112,14 +115,17 @@ async function buildFeed(viewer: { userId: string; role: ComplianceRole; permiss
 
   if (hasAccess(viewer.permissions, "risks", "view")) {
     const risks = (
-      await query<{ id: string; ref: string; name: string; owner: string; next_review_date: string; review_frequency: string }>(
-        `SELECT id, ref, name, owner, next_review_date::text AS next_review_date, review_frequency FROM compliance_risks
+      await query<{ id: string; ref: string; name: string; owner: string; next_review_date: string; review_frequency: string; last_reviewed_at: Date | null }>(
+        `SELECT id, ref, name, owner, next_review_date::text AS next_review_date, review_frequency, last_reviewed_at FROM compliance_risks
          WHERE status <> 'closed' AND next_review_date IS NOT NULL`,
       )
     ).rows;
     for (const r of risks) {
       // A monthly review is always within 30 days of the last one, so a 30-day window would count it as
       // "due soon" the moment it is reviewed. Monthly risks count as due soon only in their last week.
+      const urgency = urgencyOf(r.next_review_date, todayIso(), r.review_frequency === "monthly" ? DIGEST_WINDOW_DAYS : undefined);
+      // Once reviewed, the next review stays off the calendar until it falls due (the review itself is under Done).
+      if (r.last_reviewed_at && urgency === "upcoming") continue;
       items.push({
         key: `risk:${r.id}`,
         source: "risk_review",
@@ -127,7 +133,7 @@ async function buildFeed(viewer: { userId: string; role: ComplianceRole; permiss
         area: "Risk",
         owner: r.owner,
         dueDate: r.next_review_date,
-        urgency: urgencyOf(r.next_review_date, todayIso(), r.review_frequency === "monthly" ? DIGEST_WINDOW_DAYS : undefined),
+        urgency,
         link: "/solicitor/fg-compliance/risks",
         task: null,
       });
@@ -273,12 +279,42 @@ function digestItems(items: ReminderItem[], today: string): ReminderItem[] {
 
 const ALL_EDIT = effectivePermissions("principal", []);
 
+/** Change-log actions that record a completed review, limited to the areas this person may see. */
+function reviewActions(viewer: { permissions: PermissionMap }): string[] {
+  return [
+    ...(hasAccess(viewer.permissions, "risks", "view") ? ["risk.reviewed"] : []),
+    ...(hasAccess(viewer.permissions, "policies", "view") ? ["policy.reviewed"] : []),
+  ];
+}
+
+/** A logged policy or risk review, shown under Done like a completed task. */
+function reviewToTask(row: { id: string; action: string; entity_id: string | null; user_email: string | null; details: Record<string, unknown>; created_at: Date }): Task {
+  const isRisk = row.action === "risk.reviewed";
+  const wasDue = typeof row.details["wasDue"] === "string" ? row.details["wasDue"] : "";
+  const next = typeof row.details["nextReviewDate"] === "string" ? row.details["nextReviewDate"] : null;
+  return {
+    id: `review:${row.id}`,
+    seriesId: `review:${row.id}`,
+    title: isRisk ? `Review risk ${row.entity_id ?? ""}` : `Review policy: ${row.entity_id ?? ""}`,
+    notes: "",
+    area: isRisk ? "Risk" : "Policies",
+    owner: "",
+    dueDate: wasDue,
+    recurrence: "none",
+    status: "completed",
+    completedAt: row.created_at.toISOString(),
+    completedBy: row.user_email,
+    completionNote: next ? `Next review due ${new Date(`${next.slice(0, 10)}T00:00:00Z`).toLocaleDateString("en-GB", { timeZone: "UTC" })}` : null,
+  };
+}
+
 export const remindersService = {
   async feed(actor: ReminderActor): Promise<{ items: ReminderItem[]; summary: ReminderSummary; areas: readonly string[] }> {
     const items = await buildFeed(actor);
     const completed = await query<{ count: number }>(
-      `SELECT COUNT(*)::int AS count FROM compliance_tasks
-       WHERE status = 'completed' AND completed_at >= date_trunc('month', NOW())`,
+      `SELECT ((SELECT COUNT(*) FROM compliance_tasks WHERE status = 'completed' AND completed_at >= date_trunc('month', NOW()))
+            + (SELECT COUNT(*) FROM compliance_audit_log WHERE action = ANY($1::text[]) AND created_at >= date_trunc('month', NOW())))::int AS count`,
+      [reviewActions(actor)],
     );
     return {
       items,
@@ -292,14 +328,24 @@ export const remindersService = {
     };
   },
 
-  async history(): Promise<Task[]> {
+  /** Completed and cancelled tasks, plus the policy and risk reviews this person may see, newest first. */
+  async history(viewer: ReminderActor): Promise<Task[]> {
     const rows = (
       await query<TaskRow>(
         `SELECT ${TASK_COLUMNS} FROM compliance_tasks WHERE status <> 'open'
          ORDER BY COALESCE(completed_at, updated_at) DESC LIMIT 100`,
       )
     ).rows;
-    return rows.map(toTask);
+    const reviews = (
+      await query<{ id: string; action: string; entity_id: string | null; user_email: string | null; details: Record<string, unknown>; created_at: Date }>(
+        `SELECT id::text AS id, action, entity_id, user_email, details, created_at FROM compliance_audit_log
+         WHERE action = ANY($1::text[]) ORDER BY created_at DESC LIMIT 100`,
+        [reviewActions(viewer)],
+      )
+    ).rows;
+    return [...rows.map(toTask), ...reviews.map(reviewToTask)]
+      .sort((a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? ""))
+      .slice(0, 100);
   },
 
   async create(input: CreateTaskInput, actor: ReminderActor): Promise<Task> {

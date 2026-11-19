@@ -11,6 +11,14 @@ export const COMPLIANCE_MODULES = [
   { id: "file_reviews", label: "File Reviews & Supervision" },
   { id: "training", label: "Staff Training & Competence" },
   { id: "business", label: "Financial & Business Compliance" },
+  { id: "assistant", label: "AI Assistant" },
+  { id: "insights", label: "AI Analysis" },
+  { id: "audit_pack", label: "SQM Audit Pack" },
+  { id: "users", label: "Users & Access" },
+  { id: "access_log", label: "Access Log" },
+  { id: "backups", label: "Backups" },
+  { id: "firm_data", label: "Export & Delete Data" },
+  { id: "system", label: "System Status" },
 ] as const;
 
 export type ComplianceModule = (typeof COMPLIANCE_MODULES)[number]["id"];
@@ -20,7 +28,8 @@ export const COMPLIANCE_MODULE_IDS = COMPLIANCE_MODULES.map((module) => module.i
   ...ComplianceModule[],
 ];
 
-export type AccessLevel = "none" | "view" | "edit";
+/** "full": everything the Principal can do in that area (approve, sign off, delete, restore...). */
+export type AccessLevel = "none" | "view" | "edit" | "full";
 
 export type PermissionMap = Record<ComplianceModule, AccessLevel>;
 

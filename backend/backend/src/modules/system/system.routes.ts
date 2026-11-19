@@ -16,13 +16,14 @@ function handle(fn: (req: Request, res: Response) => Promise<void>) {
 
 export const systemRouter = Router();
 
-const principal = requireCompliance("principal");
+const canView = requireCompliance("system");
+const canEdit = requireCompliance("system", "edit");
 
-systemRouter.get("/status", authenticate, principal, handle(async (req, res) => {
+systemRouter.get("/status", authenticate, canView, handle(async (req, res) => {
   res.json({ success: true, data: await systemService.status({ secure: req.secure }) });
 }));
 
-systemRouter.post("/test-email", authenticate, principal, handle(async (req, res) => {
+systemRouter.post("/test-email", authenticate, canEdit, handle(async (req, res) => {
   if (!req.auth?.sub) throw new AppError("Please sign in to continue.", 401, "UNAUTHENTICATED");
   try {
     res.json({ success: true, data: await systemService.sendTestEmail({ userId: req.auth.sub, email: req.auth.email, ip: req.ip }) });

@@ -21,7 +21,7 @@ import { SolicitorDataLoading } from "@/components/solicitor/SolicitorDataStates
 import { GapChip, SqmStatusBadge } from "@/components/compliance/sqm-badges";
 import { formatDate } from "@/components/compliance/policy-badges";
 import { ApiError } from "@/lib/api";
-import { useComplianceMe } from "@/lib/compliance-access-api";
+import { hasFullAccess, useComplianceMe } from "@/lib/compliance-access-api";
 import {
   downloadEvidence,
   SQM_STATUS_LABELS,
@@ -58,7 +58,8 @@ export function SqmRequirementPage({ requirementId }: { requirementId: string })
   }
 
   const canEdit = me.data?.permissions?.["sqm"] === "edit";
-  const isPrincipal = me.data?.role === "principal";
+  // The Principal, or full access to this area.
+  const isPrincipal = hasFullAccess(me.data, "sqm");
 
   return (
     <div className="space-y-6 pb-12">

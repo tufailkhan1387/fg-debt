@@ -205,7 +205,7 @@ export const riskRegisterService = {
       [id, now, nextReviewDate(now, before.reviewFrequency), actor.email],
     );
     const risk = toRisk(result.rows[0]);
-    await log(actor, "risk.reviewed", risk.ref, { nextReviewDate: risk.nextReviewDate });
+    await log(actor, "risk.reviewed", risk.ref, { wasDue: before.nextReviewDate, nextReviewDate: risk.nextReviewDate });
     return risk;
   },
 

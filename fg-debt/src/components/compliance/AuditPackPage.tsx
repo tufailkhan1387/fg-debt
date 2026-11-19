@@ -12,7 +12,7 @@ import { downloadAuditPack, useAuditPackSummary, type AuditPackOptions } from "@
 
 export function AuditPackPage() {
   return (
-    <PrincipalGate message="Only the firm's Principal can build an audit pack, because it gathers documents from every area.">
+    <PrincipalGate area="audit_pack" message="Only the firm's Principal can build an audit pack, because it gathers documents from every area.">
       <AuditPack />
     </PrincipalGate>
   );

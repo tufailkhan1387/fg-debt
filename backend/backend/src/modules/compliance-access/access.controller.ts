@@ -17,7 +17,7 @@ function actorOf(req: Request) {
   if (!req.auth?.sub) {
     throw new AppError("Please sign in to continue.", 401, "UNAUTHENTICATED");
   }
-  return { userId: req.auth.sub, email: req.auth.email, ip: req.ip };
+  return { userId: req.auth.sub, email: req.auth.email, ip: req.ip, isPrincipal: req.compliance?.role === "principal" };
 }
 
 function idParam(value: string | string[]): string {

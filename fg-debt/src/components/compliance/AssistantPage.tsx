@@ -22,7 +22,7 @@ const EXAMPLES = [
 
 export function AssistantPage() {
   return (
-    <PrincipalGate message="The AI Compliance Assistant is for the firm's Principal, because it reads every area of the firm's records.">
+    <PrincipalGate area="assistant" message="The AI Compliance Assistant is for the firm's Principal, because it reads every area of the firm's records.">
       <Assistant />
     </PrincipalGate>
   );

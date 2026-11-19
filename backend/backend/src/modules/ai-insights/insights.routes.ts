@@ -33,26 +33,27 @@ function handle(fn: (req: Request, res: Response) => Promise<void>) {
 export const insightsRouter = Router();
 
 // The analyses read every area of the firm's records, so they are for the Principal (like the assistant).
-const principal = requireCompliance("principal");
+const canView = requireCompliance("insights");
+const canEdit = requireCompliance("insights", "edit");
 const uuid = z.string().uuid();
 
-insightsRouter.get("/", authenticate, principal, handle(async (_req, res) => {
+insightsRouter.get("/", authenticate, canView, handle(async (_req, res) => {
   res.json({ success: true, data: await insightsService.overview() });
 }));
 
-insightsRouter.get("/:id", authenticate, principal, handle(async (req, res) => {
+insightsRouter.get("/:id", authenticate, canView, handle(async (req, res) => {
   const id = param(req.params.id);
   if (!uuid.safeParse(id).success) throw new AppError("Analysis not found.", 404, "INSIGHT_NOT_FOUND");
   res.json({ success: true, data: { insight: await insightsService.get(id) } });
 }));
 
-insightsRouter.post("/run/:kind", authenticate, principal, handle(async (req, res) => {
+insightsRouter.post("/run/:kind", authenticate, canEdit, handle(async (req, res) => {
   const parsed = runSchema.safeParse(req.body ?? {});
   if (!parsed.success) throw new AppError(parsed.error.issues[0]?.message ?? "Invalid request.", 400, "VALIDATION_ERROR");
   res.json({ success: true, data: { insight: await insightsService.run(param(req.params.kind), parsed.data, actorOf(req)) } });
 }));
 
-insightsRouter.delete("/:id", authenticate, principal, handle(async (req, res) => {
+insightsRouter.delete("/:id", authenticate, canEdit, handle(async (req, res) => {
   const id = param(req.params.id);
   if (!uuid.safeParse(id).success) throw new AppError("Analysis not found.", 404, "INSIGHT_NOT_FOUND");
   await insightsService.remove(id, actorOf(req));

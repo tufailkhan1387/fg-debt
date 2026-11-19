@@ -530,7 +530,7 @@ export const policyLibraryService = {
        WHERE id = $1`,
       [id, today, next, actor.email],
     );
-    await log(actor, "policy.reviewed", policy.title, { nextReviewDate: next });
+    await log(actor, "policy.reviewed", policy.title, { wasDue: policy.next_review_date, nextReviewDate: next });
     return this.get(id, actor);
   },
 

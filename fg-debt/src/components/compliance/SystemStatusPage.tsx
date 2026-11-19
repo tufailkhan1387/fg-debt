@@ -16,7 +16,7 @@ const STATE_STYLES: Record<CheckState, { icon: typeof CheckCircle2; className: s
 
 export function SystemStatusPage() {
   return (
-    <PrincipalGate message="Only the firm's Principal can see the system's set-up.">
+    <PrincipalGate area="system" message="Only the firm's Principal can see the system's set-up.">
       <SystemStatus />
     </PrincipalGate>
   );

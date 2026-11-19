@@ -52,7 +52,10 @@ export interface ReviewDetail extends ReviewSummary {
   correctiveActions: RegisterEntry[];
   registerEntryId: string | null;
   completedBy: string | null;
+  /** The person who started it or the Principal; completed reviews included. */
   canChange: boolean;
+  /** Drafts: as canChange. Completed reviews: the Principal only. */
+  canDelete: boolean;
 }
 
 export interface RecurringIssue {
@@ -150,7 +153,8 @@ export function useCompleteAction(id: string) {
   );
 }
 
-export function useDeleteDraft() {
+/** Deletes a draft, or a completed review together with its register entries. */
+export function useDeleteReview() {
   return useFileReviewMutation((id: string) => apiRequest<{ removed: true }>(`${BASE}/reviews/${encodeURIComponent(id)}`, { method: "DELETE" }));
 }
 

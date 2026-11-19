@@ -57,6 +57,8 @@ export interface RegisterEntry {
   canRestrict: boolean;
   reviewedBy: string | null;
   reviewedAt: string | null;
+  /** Set once reviewed: the entry is due again on this date. */
+  nextReviewDate: string | null;
   createdBy: string;
   createdAt: string;
   updatedBy: string | null;
@@ -124,8 +126,10 @@ export function useUpdateEntry() {
 }
 
 export function useReviewEntry() {
-  return useRegisterMutation((id: string) =>
-    apiRequest<{ entry: RegisterEntry }>(`${BASE}/entries/${encodeURIComponent(id)}/review`, { method: "POST" }).then((r) => r.entry),
+  return useRegisterMutation(({ id, nextReviewDate }: { id: string; nextReviewDate: string }) =>
+    apiRequest<{ entry: RegisterEntry }>(`${BASE}/entries/${encodeURIComponent(id)}/review`, { method: "POST", body: { nextReviewDate } }).then(
+      (r) => r.entry,
+    ),
   );
 }
 

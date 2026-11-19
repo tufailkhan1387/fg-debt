@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { COMPLIANCE_MODULE_IDS } from "./access.types.js";
 
-const accessLevelSchema = z.enum(["none", "view", "edit"]);
+const accessLevelSchema = z.enum(["none", "view", "edit", "full"]);
 
 // zod v3: a record keyed by an enum is partial, so callers may send only the modules they change.
 const permissionsSchema = z.record(z.enum(COMPLIANCE_MODULE_IDS), accessLevelSchema);

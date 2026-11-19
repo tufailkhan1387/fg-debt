@@ -17,7 +17,7 @@ function errorMessage(error: unknown) {
 
 export function FirmDataPage() {
   return (
-    <PrincipalGate message="Only the firm's Principal can export or delete the firm's compliance data.">
+    <PrincipalGate area="firm_data" message="Only the firm's Principal can export or delete the firm's compliance data.">
       <FirmData />
     </PrincipalGate>
   );

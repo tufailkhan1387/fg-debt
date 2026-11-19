@@ -117,7 +117,8 @@ export const trainingRouter = Router();
 
 const canView = requireCompliance("training", "view");
 const canEdit = requireCompliance("training", "edit");
-const principal = requireCompliance("principal");
+// The Principal, or anyone given full access to this area.
+const principal = requireCompliance("training", "full");
 
 trainingRouter.get("/", authenticate, canView, handle(async (req, res) => {
   res.json({ success: true, data: await trainingService.overview(actorOf(req)) });

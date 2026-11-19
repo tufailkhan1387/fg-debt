@@ -7,7 +7,8 @@ export const remindersRouter = Router();
 
 const canView = requireCompliance("reminders", "view");
 const canEdit = requireCompliance("reminders", "edit");
-const principal = requireCompliance("principal");
+// The Principal, or anyone given full access to this area.
+const principal = requireCompliance("reminders", "full");
 
 remindersRouter.get("/", authenticate, canView, c.feed);
 remindersRouter.get("/history", authenticate, canView, c.history);

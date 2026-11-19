@@ -92,7 +92,8 @@ export const businessRouter = Router();
 
 const canView = requireCompliance("business", "view");
 const canEdit = requireCompliance("business", "edit");
-const principal = requireCompliance("principal");
+// The Principal, or anyone given full access to this area.
+const principal = requireCompliance("business", "full");
 const spreadsheet = spreadsheetUploadMiddleware.single("file");
 
 businessRouter.get("/", authenticate, canView, handle(async (_req, res) => {

@@ -33,13 +33,14 @@ function handle(fn: (req: Request, res: Response) => Promise<void>) {
 export const auditPackRouter = Router();
 
 // The pack gathers documents from every area, so only the Principal builds one.
-const principal = requireCompliance("principal");
+const canView = requireCompliance("audit_pack");
+const canEdit = requireCompliance("audit_pack", "edit");
 
-auditPackRouter.get("/summary", authenticate, principal, handle(async (req, res) => {
+auditPackRouter.get("/summary", authenticate, canView, handle(async (req, res) => {
   res.json({ success: true, data: await auditPackService.summary(actorOf(req)) });
 }));
 
-auditPackRouter.post("/", authenticate, principal, handle(async (req, res) => {
+auditPackRouter.post("/", authenticate, canEdit, handle(async (req, res) => {
   const result = optionsSchema.safeParse(req.body ?? {});
   if (!result.success) throw new AppError(result.error.issues[0]?.message ?? "Invalid request.", 400, "VALIDATION_ERROR");
   const file = await auditPackService.build(result.data, actorOf(req));

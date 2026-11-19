@@ -35,7 +35,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { SolicitorStatCard } from "@/components/solicitor/SolicitorStatCard";
 import { SolicitorDataLoading } from "@/components/solicitor/SolicitorDataStates";
 import { ApiError } from "@/lib/api";
-import { useComplianceMe } from "@/lib/compliance-access-api";
+import { hasFullAccess, useComplianceMe } from "@/lib/compliance-access-api";
 import {
   exportRiskRegister,
   FREQUENCY_LABELS,
@@ -103,7 +103,8 @@ export function RiskRegisterPage() {
   const [deleting, setDeleting] = useState<Risk | null>(null);
 
   const canEdit = me.data?.permissions?.["risks"] === "edit";
-  const isPrincipal = me.data?.role === "principal";
+  // The Principal, or full access to this area.
+  const isPrincipal = hasFullAccess(me.data, "risks");
 
   const risks = useMemo(() => {
     const match = FILTERS.find((f) => f.value === filter)?.match ?? (() => true);

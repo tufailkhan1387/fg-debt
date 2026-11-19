@@ -14,7 +14,7 @@ import { useDeleteInsight, useInsight, useInsights, useRunInsight, type Insight,
 
 export function InsightsPage() {
   return (
-    <PrincipalGate message="AI analysis is for the firm's Principal, because it reads every area of the firm's records.">
+    <PrincipalGate area="insights" message="AI analysis is for the firm's Principal, because it reads every area of the firm's records.">
       <Insights />
     </PrincipalGate>
   );

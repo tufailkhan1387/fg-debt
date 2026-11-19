@@ -8,7 +8,8 @@ export const sqmRouter = Router();
 
 const canView = requireCompliance("sqm", "view");
 const canEdit = requireCompliance("sqm", "edit");
-const principal = requireCompliance("principal");
+// The Principal, or anyone given full access to this area.
+const principal = requireCompliance("sqm", "full");
 
 sqmRouter.get("/", authenticate, canView, c.overview);
 sqmRouter.get("/report", authenticate, canView, c.exportReadiness);

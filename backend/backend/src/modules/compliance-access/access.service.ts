@@ -21,6 +21,15 @@ interface Actor {
   userId: string;
   email: string;
   ip?: string | null;
+  /** False for staff given rights to Users & Access: they manage staff and viewers, never Principals or themselves. */
+  isPrincipal: boolean;
+}
+
+function guardManager(actor: Actor, target: { id: string; compliance_role: string | null } | null, newRole?: string | null) {
+  if (actor.isPrincipal) return;
+  if (newRole === "principal") throw new AppError("Only a Principal can make someone a Principal.", 403, "FORBIDDEN");
+  if (target?.compliance_role === "principal") throw new AppError("Only a Principal can change or remove a Principal.", 403, "FORBIDDEN");
+  if (target && target.id === actor.userId) throw new AppError("Ask the Principal to change your own access.", 403, "FORBIDDEN");
 }
 
 async function permissionRowsFor(userIds: string[]): Promise<PermissionRow[]> {
@@ -101,6 +110,7 @@ export const accessService = {
   },
 
   async createUser(input: CreateFirmUserInput, actor: Actor): Promise<FirmUser> {
+    guardManager(actor, null, input.complianceRole);
     const existing = await query("SELECT 1 FROM users WHERE LOWER(email) = LOWER($1)", [input.email]);
     if (existing.rowCount) {
       throw new AppError("An account with this email already exists.", 409, "EMAIL_IN_USE");
@@ -142,6 +152,7 @@ export const accessService = {
 
   async updateUser(userId: string, input: UpdateFirmUserInput, actor: Actor): Promise<FirmUser> {
     const before = await getFirmUserRow(userId);
+    guardManager(actor, before, input.complianceRole);
     const beforePermissions = effectivePermissions(before.compliance_role, await permissionRowsFor([userId]));
 
     if (input.complianceRole !== undefined && input.complianceRole !== before.compliance_role) {
@@ -185,6 +196,7 @@ export const accessService = {
       throw new AppError("You cannot remove your own account.", 400, "CANNOT_DELETE_SELF");
     }
     const user = await getFirmUserRow(userId);
+    guardManager(actor, user);
     if (user.compliance_role === "principal" && (await countPrincipals()) <= 1) {
       throw new AppError("The firm must keep at least one Principal.", 400, "LAST_PRINCIPAL");
     }
@@ -204,6 +216,7 @@ export const accessService = {
   /** Clears a user's authenticator (e.g. lost phone). If two-factor is required they set it up again at next sign-in. */
   async resetUserMfa(userId: string, actor: Actor): Promise<FirmUser> {
     const user = await getFirmUserRow(userId);
+    guardManager(actor, user);
     await query(
       "UPDATE users SET mfa_enabled = FALSE, mfa_secret_enc = NULL, updated_at = NOW() WHERE id = $1",
       [userId],

@@ -16,7 +16,7 @@ import { SolicitorDataLoading } from "@/components/solicitor/SolicitorDataStates
 import { formatDate } from "@/components/compliance/policy-badges";
 import { ApiError } from "@/lib/api";
 import { getCurrentUser } from "@/lib/auth";
-import { useComplianceMe } from "@/lib/compliance-access-api";
+import { hasFullAccess, useComplianceMe } from "@/lib/compliance-access-api";
 import {
   useAddQuestions,
   useFileReviews,
@@ -39,7 +39,8 @@ export function FileReviewsPage() {
   const [starting, setStarting] = useState(false);
 
   const canEdit = me.data?.permissions?.["file_reviews"] === "edit";
-  const isPrincipal = me.data?.role === "principal";
+  // The Principal, or full access to this area.
+  const isPrincipal = hasFullAccess(me.data, "file_reviews");
 
   if (me.isLoading || overview.isLoading) return <SolicitorDataLoading label="Loading file reviews…" />;
   if (overview.isError || !overview.data) {

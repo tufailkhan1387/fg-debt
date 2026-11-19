@@ -52,6 +52,7 @@ const LEVEL_OPTIONS: Array<{ value: AccessLevel; label: string }> = [
   { value: "none", label: "None" },
   { value: "view", label: "View" },
   { value: "edit", label: "Edit" },
+  { value: "full", label: "Full access" },
 ];
 
 function errorMessage(error: unknown, fallback: string) {
@@ -60,7 +61,7 @@ function errorMessage(error: unknown, fallback: string) {
 
 export function ComplianceUsersPage() {
   return (
-    <PrincipalGate>
+    <PrincipalGate area="users">
       <UsersAndAccess />
     </PrincipalGate>
   );
@@ -239,7 +240,7 @@ function UsersAndAccess() {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              {LEVEL_OPTIONS.filter((o) => user.complianceRole !== "viewer" || o.value !== "edit").map(
+                              {LEVEL_OPTIONS.filter((o) => user.complianceRole !== "viewer" || o.value === "none" || o.value === "view").map(
                                 (option) => (
                                   <SelectItem key={option.value} value={option.value}>
                                     {option.label}
@@ -260,7 +261,10 @@ function UsersAndAccess() {
       </Card>
 
       <p className="text-xs text-muted-foreground">
-        Principal: full access, manages users. Staff: access per area as set here. Viewer: read-only, never edit.
+        Principal: full access everywhere. Staff: access per area as set here. Viewer: read-only, never edit. Per area,
+        View lets someone see it, Edit lets them add and change things, and Full access also gives them the Principal's
+        powers there (approving, signing off, deleting, restoring). Someone with access to Users & Access can manage
+        staff and viewers, but not Principals or their own access.
         Two-factor "Required": the user must set up an authenticator app at their next sign-in and cannot turn it off.
       </p>
 

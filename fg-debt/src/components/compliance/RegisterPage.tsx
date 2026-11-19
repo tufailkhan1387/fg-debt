@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { SolicitorDataLoading } from "@/components/solicitor/SolicitorDataStates";
 import { formatDate } from "@/components/compliance/policy-badges";
 import { ApiError } from "@/lib/api";
-import { useComplianceMe, useFirmUsers } from "@/lib/compliance-access-api";
+import { hasFullAccess, useComplianceMe, useFirmUsers } from "@/lib/compliance-access-api";
 import {
   exportRegister,
   previewRegisterImport,
@@ -35,6 +35,25 @@ import {
 } from "@/lib/registers-api";
 
 type Filter = "all" | "open" | "closed";
+
+/** Local yyyy-mm-dd, a number of months / days from today. */
+function localIso(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+function inOneMonth() {
+  const d = new Date();
+  d.setMonth(d.getMonth() + 1);
+  return localIso(d);
+}
+function tomorrow() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return localIso(d);
+}
+
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
 
 function errorMessage(error: unknown) {
   return error instanceof ApiError ? error.message : "Please try again.";
@@ -63,7 +82,8 @@ export function RegisterPage({ registerKey }: { registerKey: string }) {
 
   const def = registers.data?.catalog.find((r) => r.key === registerKey);
   const canEdit = me.data?.permissions?.["registers"] === "edit";
-  const isPrincipal = me.data?.role === "principal";
+  // The Principal, or full access to this area.
+  const isPrincipal = hasFullAccess(me.data, "registers");
 
   const rows = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -417,6 +437,8 @@ function EntryDialog({
   const [restricted, setRestricted] = useState(entry ? entry.restricted : def.sensitive);
   const [allowed, setAllowed] = useState<Set<string>>(() => new Set(entry?.allowedUserIds ?? []));
   const [confirmRemove, setConfirmRemove] = useState(false);
+  // null: not marking reviewed; otherwise the next review date being chosen (default: in a month).
+  const [nextReview, setNextReview] = useState<string | null>(null);
 
   const readOnly = !canEdit;
   const canRestrict = !entry || entry.canRestrict;
@@ -468,7 +490,8 @@ function EntryDialog({
 
         {entry?.reviewedAt && (
           <p className="flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-300">
-            <CheckCircle2 className="size-3.5" /> Reviewed by {entry.reviewedBy} on {formatDate(entry.reviewedAt)}.
+            <CheckCircle2 className="size-3.5" /> Reviewed by {entry.reviewedBy} on {formatDateTime(entry.reviewedAt)}.
+            {entry.nextReviewDate && ` Next review ${formatDate(entry.nextReviewDate)}.`}
           </p>
         )}
 
@@ -548,6 +571,33 @@ function EntryDialog({
             )}
           </fieldset>
 
+          {entry && nextReview !== null && (
+            <div className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-end">
+              <div className="space-y-1.5">
+                <Label htmlFor="next-review">Next review date</Label>
+                <Input id="next-review" type="date" value={nextReview} min={tomorrow()} onChange={(e) => setNextReview(e.target.value)} />
+              </div>
+              <p className="flex-1 text-xs text-muted-foreground">Until then this entry leaves the calendar and dashboard deadlines.</p>
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" disabled={busy} onClick={() => setNextReview(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  disabled={busy || !nextReview || nextReview < tomorrow()}
+                  onClick={() =>
+                    reviewEntry.mutate(
+                      { id: entry.id, nextReviewDate: nextReview },
+                      { onSuccess: done(`Marked as reviewed. Next review ${formatDate(nextReview)}.`), onError: failed("Could not record the review") },
+                    )
+                  }
+                >
+                  {reviewEntry.isPending && <Loader2 className="size-4 animate-spin" />} Confirm review
+                </Button>
+              </div>
+            </div>
+          )}
+
           <DialogFooter className="gap-2 sm:justify-between">
             <div className="flex flex-wrap gap-2">
               {entry && isPrincipal && (
@@ -555,7 +605,7 @@ function EntryDialog({
                   type="button"
                   variant="outline"
                   disabled={busy}
-                  onClick={() => reviewEntry.mutate(entry.id, { onSuccess: done("Marked as reviewed."), onError: failed("Could not record the review") })}
+                  onClick={() => setNextReview(inOneMonth())}
                 >
                   <CheckCircle2 className="size-4" /> Mark reviewed
                 </Button>

@@ -170,12 +170,23 @@ export interface RestoreResult {
   filesSkipped: number;
 }
 
+export interface RestoreOptions {
+  /**
+   * Empty every table first, so the database ends up exactly as it was in the backup (the in-app restore).
+   * Without it rows are only added or updated (restoring into a new, empty database).
+   */
+  replace?: boolean;
+  /** Tables never emptied; rows from the backup are only added where missing (the append-only access log). */
+  keep?: string[];
+}
+
 /**
  * Restores an opened backup into the database `client` is connected to (its schema must already exist).
  * Rows are inserted, or updated where a row with the same key exists (rows the migrations add). Files are written
  * to the upload folder unless the same file is already there.
  */
-export async function restoreBackup(client: pg.PoolClient, backup: OpenedBackup): Promise<RestoreResult> {
+export async function restoreBackup(client: pg.PoolClient, backup: OpenedBackup, options: RestoreOptions = {}): Promise<RestoreResult> {
+  const keep = new Set(options.keep ?? []);
   const present = new Set(await tableNames(client));
   const names = backup.manifest.tables.map((t) => t.name).filter((n) => present.has(n));
 
@@ -204,6 +215,10 @@ export async function restoreBackup(client: pg.PoolClient, backup: OpenedBackup)
   let rows = 0;
   await client.query("BEGIN");
   try {
+    if (options.replace) {
+      const wipe = [...present].filter((t) => !keep.has(t));
+      if (wipe.length) await client.query(`TRUNCATE ${wipe.map(quote).join(", ")} RESTART IDENTITY CASCADE`);
+    }
     for (const table of order) {
       const json = backup.tables.get(table)!;
       const data = JSON.parse(json) as Array<Record<string, unknown>>;
@@ -217,7 +232,7 @@ export async function restoreBackup(client: pg.PoolClient, backup: OpenedBackup)
       const list = cols.map(quote).join(", ");
       const update = cols.filter((c) => !key.includes(c));
       const conflict = key.length
-        ? `ON CONFLICT (${key.map(quote).join(", ")}) DO ${update.length ? `UPDATE SET ${update.map((c) => `${quote(c)} = EXCLUDED.${quote(c)}`).join(", ")}` : "NOTHING"}`
+        ? `ON CONFLICT (${key.map(quote).join(", ")}) DO ${update.length && !keep.has(table) ? `UPDATE SET ${update.map((c) => `${quote(c)} = EXCLUDED.${quote(c)}`).join(", ")}` : "NOTHING"}`
         : "";
       await client.query(`INSERT INTO ${quote(table)} (${list}) SELECT ${list} FROM jsonb_populate_recordset(NULL::${quote(table)}, $1::jsonb) ${conflict}`, [json]);
       rows += data.length;

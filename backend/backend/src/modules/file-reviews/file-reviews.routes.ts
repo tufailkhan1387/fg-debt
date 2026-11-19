@@ -84,7 +84,8 @@ export const fileReviewsRouter = Router();
 
 const canView = requireCompliance("file_reviews", "view");
 const canEdit = requireCompliance("file_reviews", "edit");
-const principal = requireCompliance("principal");
+// The Principal, or anyone given full access to this area.
+const principal = requireCompliance("file_reviews", "full");
 
 fileReviewsRouter.get("/", authenticate, canView, handle(async (_req, res) => {
   res.json({ success: true, data: await fileReviewsService.overview() });
@@ -135,6 +136,6 @@ fileReviewsRouter.post("/reviews/:id/actions/:entryId/done", authenticate, canEd
 }));
 
 fileReviewsRouter.delete("/reviews/:id", authenticate, canEdit, handle(async (req, res) => {
-  await fileReviewsService.removeDraft(param(req.params.id), actorOf(req));
+  await fileReviewsService.remove(param(req.params.id), actorOf(req));
   res.json({ success: true, data: { removed: true } });
 }));

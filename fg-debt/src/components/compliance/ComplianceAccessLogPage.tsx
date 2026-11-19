@@ -241,7 +241,7 @@ function describe(entry: AccessLogEntry): string {
 
 export function ComplianceAccessLogPage() {
   return (
-    <PrincipalGate>
+    <PrincipalGate area="access_log">
       <AccessLog />
     </PrincipalGate>
   );

@@ -18,6 +18,8 @@ const nilSchema = z.object({
   note: z.string().trim().max(500).default(""),
 });
 
+const reviewSchema = z.object({ nextReviewDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date like 2026-12-31.").optional() });
+
 const updateSchema = z.object({
   data: z.record(z.string(), z.unknown()).optional(),
   restricted: z.boolean().optional(),
@@ -55,7 +57,8 @@ export const registersRouter = Router();
 
 const canView = requireCompliance("registers", "view");
 const canEdit = requireCompliance("registers", "edit");
-const principal = requireCompliance("principal");
+// The Principal, or anyone given full access to this area.
+const principal = requireCompliance("registers", "full");
 const upload = spreadsheetUploadMiddleware.single("file");
 
 registersRouter.get("/", authenticate, canView, handle(async (req, res) => {
@@ -100,7 +103,8 @@ registersRouter.patch("/entries/:id", authenticate, canEdit, handle(async (req, 
 }));
 
 registersRouter.post("/entries/:id/review", authenticate, principal, handle(async (req, res) => {
-  res.json({ success: true, data: { entry: await registersService.markReviewed(param(req.params.id), actorOf(req)) } });
+  const { nextReviewDate } = parse(reviewSchema, req.body ?? {});
+  res.json({ success: true, data: { entry: await registersService.markReviewed(param(req.params.id), nextReviewDate, actorOf(req)) } });
 }));
 
 registersRouter.delete("/entries/:id", authenticate, principal, handle(async (req, res) => {

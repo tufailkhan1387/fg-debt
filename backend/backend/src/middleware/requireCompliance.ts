@@ -8,6 +8,7 @@ import type { AccessLevel, ComplianceModule } from "../modules/compliance-access
 /**
  * Guards a compliance route. `"principal"` limits it to Principals, `"member"` lets in anyone with a compliance
  * role (pages that filter their own content by rights), and a module id checks that module's rights.
+ * A user with "full" access to the module is treated as the Principal for that request.
  * Allowed reads and every refused request are written to the compliance access log
  * (changes are logged with details by services).
  */
@@ -37,7 +38,10 @@ export function requireCompliance(area: ComplianceModule | "principal" | "member
           "FORBIDDEN",
         );
       }
-      req.compliance = access;
+      // Full access to an area means the Principal's powers there, so services that check for the Principal allow it.
+      // Users & Access is the exception: managing people never lets someone act as a Principal (see access.service).
+      const full = area !== "principal" && area !== "member" && area !== "users" && access.permissions[area] === "full";
+      req.compliance = full ? { ...access, role: "principal" } : access;
 
       if (req.method === "GET") {
         await recordAccessLog({

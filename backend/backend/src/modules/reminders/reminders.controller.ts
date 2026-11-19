@@ -45,8 +45,8 @@ export const remindersController = {
     res.json({ success: true, data: await remindersService.feed(actorOf(req)) });
   }),
 
-  history: handle(async (_req, res) => {
-    res.json({ success: true, data: { tasks: await remindersService.history() } });
+  history: handle(async (req, res) => {
+    res.json({ success: true, data: { tasks: await remindersService.history(actorOf(req)) } });
   }),
 
   create: handle(async (req, res) => {

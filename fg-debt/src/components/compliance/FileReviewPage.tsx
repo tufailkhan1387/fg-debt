@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, CheckCircle2, Download, Loader2, Lock, Plus, Save, Trash2, X } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Download, Loader2, Lock, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,7 @@ import {
   downloadReviewReport,
   useCompleteAction,
   useCompleteReview,
-  useDeleteDraft,
+  useDeleteReview,
   useFileReview,
   useSaveReview,
   type Answer,
@@ -47,6 +47,8 @@ export function FileReviewPage({ reviewId }: { reviewId: string }) {
   const me = useComplianceMe();
   const review = useFileReview(reviewId);
   const [downloading, setDownloading] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   if (me.isLoading || review.isLoading) return <SolicitorDataLoading label="Loading file review…" />;
   if (review.isError || !review.data) {
@@ -66,6 +68,7 @@ export function FileReviewPage({ reviewId }: { reviewId: string }) {
 
   const data = review.data;
   const canEdit = me.data?.permissions?.["file_reviews"] === "edit";
+  const completed = data.status === "completed";
 
   async function download() {
     setDownloading(true);
@@ -102,22 +105,80 @@ export function FileReviewPage({ reviewId }: { reviewId: string }) {
               : `Started by ${data.createdBy}. Answer every question, record findings and actions, then complete the review.`}
           </p>
         </div>
-        <Button variant="outline" disabled={downloading} onClick={download}>
-          {downloading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
-          Report (Word)
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {completed && !editing && canEdit && data.canChange && (
+            <Button variant="outline" onClick={() => setEditing(true)}>
+              <Pencil className="size-4" /> Edit
+            </Button>
+          )}
+          {completed && !editing && canEdit && data.canDelete && (
+            <Button variant="outline" className="text-rose-600" onClick={() => setDeleting(true)}>
+              <Trash2 className="size-4" /> Delete
+            </Button>
+          )}
+          <Button variant="outline" disabled={downloading} onClick={download}>
+            {downloading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+            Report (Word)
+          </Button>
+        </div>
       </div>
 
-      {data.canChange ? <DraftEditor key={data.id} review={data} /> : <CompletedView review={data} canEdit={canEdit} />}
+      {canEdit && data.canChange && (!completed || editing) ? (
+        <DraftEditor key={`${data.id}:${completed}`} review={data} onDone={() => setEditing(false)} />
+      ) : (
+        <CompletedView review={data} canEdit={canEdit} />
+      )}
+      {deleting && <DeleteReviewDialog review={data} onClose={() => setDeleting(false)} />}
     </div>
   );
 }
 
-function DraftEditor({ review }: { review: ReviewDetail }) {
+function DeleteReviewDialog({ review, onClose }: { review: ReviewDetail; onClose: () => void }) {
   const navigate = useNavigate();
+  const deleteReview = useDeleteReview();
+  const completed = review.status === "completed";
+  const actions = review.correctiveActions.length;
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{completed ? "Delete this review?" : "Delete this draft?"}</DialogTitle>
+          <DialogDescription>
+            {completed
+              ? `The review and its File reviews register entry${actions ? ` and ${actions} corrective action${actions === 1 ? "" : "s"}` : ""} are deleted. This cannot be undone.`
+              : "The draft and its answers are deleted. This cannot be undone."}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={deleteReview.isPending}
+            onClick={() =>
+              deleteReview.mutate(review.id, {
+                onSuccess: () => {
+                  toast.success(completed ? "Review deleted." : "Draft deleted.");
+                  void navigate({ to: "/solicitor/fg-compliance/file-reviews" });
+                },
+                onError: (error) => toast.error(completed ? "Could not delete the review" : "Could not delete the draft", { description: errorMessage(error) }),
+              })
+            }
+          >
+            {deleteReview.isPending && <Loader2 className="size-4 animate-spin" />} {completed ? "Delete review" : "Delete draft"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DraftEditor({ review, onDone }: { review: ReviewDetail; onDone: () => void }) {
+  const completed = review.status === "completed";
   const save = useSaveReview(review.id);
   const complete = useCompleteReview(review.id);
-  const deleteDraft = useDeleteDraft();
   const [header, setHeader] = useState({
     matterRef: review.matterRef,
     matterType: review.matterType,
@@ -132,7 +193,7 @@ function DraftEditor({ review }: { review: ReviewDetail }) {
 
   const answered = checklist.filter((c) => c.answer !== null).length;
   const noCount = checklist.filter((c) => c.answer === "no").length;
-  const busy = save.isPending || complete.isPending || deleteDraft.isPending;
+  const busy = save.isPending || complete.isPending;
 
   const setItem = (questionId: string, change: Partial<ChecklistItem>) =>
     setChecklist((prev) => prev.map((c) => (c.questionId === questionId ? { ...c, ...change } : c)));
@@ -143,13 +204,17 @@ function DraftEditor({ review }: { review: ReviewDetail }) {
     ...header,
     answers: checklist.map((c) => ({ questionId: c.questionId, answer: c.answer, comment: c.comment })),
     findings,
-    actions: actions.filter((a) => a.action.trim()).map((a) => ({ ...a, dueDate: a.dueDate || null })),
+    // A completed review's corrective actions live in their register and are changed there.
+    ...(completed ? {} : { actions: actions.filter((a) => a.action.trim()).map((a) => ({ ...a, dueDate: a.dueDate || null })) }),
   });
 
   const saveDraft = () =>
     save.mutate(body(), {
-      onSuccess: () => toast.success("Draft saved."),
-      onError: (error) => toast.error("Could not save the draft", { description: errorMessage(error) }),
+      onSuccess: () => {
+        toast.success(completed ? "Changes saved." : "Draft saved.");
+        if (completed) onDone();
+      },
+      onError: (error) => toast.error(completed ? "Could not save the changes" : "Could not save the draft", { description: errorMessage(error) }),
     });
 
   const completeReview = async () => {
@@ -254,95 +319,99 @@ function DraftEditor({ review }: { review: ReviewDetail }) {
         </CardContent>
       </Card>
 
-      <Card className="surface-card">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Corrective actions</CardTitle>
-          <p className="text-xs text-muted-foreground">
-            On completion each action is added to the Corrective actions register, with its deadline on the compliance calendar.
-            {noCount > 0 && actions.length === 0 && " Some questions were answered \"No\" — consider whether an action is needed."}
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {actions.map((a, i) => (
-            <div key={i} className="grid gap-2 rounded-lg border p-3 sm:grid-cols-[minmax(0,1fr)_12rem_10rem_auto] sm:items-end">
-              <div className="min-w-0 space-y-1">
-                <Label htmlFor={`a-${i}`} className="text-xs">
-                  Action
-                </Label>
-                <Input id={`a-${i}`} value={a.action} onChange={(e) => setAction(i, { action: e.target.value })} />
+      {completed ? (
+        <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
+          Corrective actions from this review are in the Corrective actions register; change them there.
+        </p>
+      ) : (
+        <Card className="surface-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Corrective actions</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              On completion each action is added to the Corrective actions register, with its deadline on the compliance calendar.
+              {noCount > 0 && actions.length === 0 && " Some questions were answered \"No\" — consider whether an action is needed."}
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {actions.map((a, i) => (
+              <div key={i} className="grid gap-2 rounded-lg border p-3 sm:grid-cols-[minmax(0,1fr)_12rem_10rem_auto] sm:items-end">
+                <div className="min-w-0 space-y-1">
+                  <Label htmlFor={`a-${i}`} className="text-xs">
+                    Action
+                  </Label>
+                  <Input id={`a-${i}`} value={a.action} onChange={(e) => setAction(i, { action: e.target.value })} />
+                </div>
+                <div className="min-w-0 space-y-1">
+                  <Label htmlFor={`a-resp-${i}`} className="text-xs">
+                    Responsible
+                  </Label>
+                  <Input id={`a-resp-${i}`} value={a.responsible} onChange={(e) => setAction(i, { responsible: e.target.value })} />
+                </div>
+                <div className="min-w-0 space-y-1">
+                  <Label htmlFor={`a-due-${i}`} className="text-xs">
+                    Deadline
+                  </Label>
+                  <Input id={`a-due-${i}`} type="date" value={a.dueDate ?? ""} onChange={(e) => setAction(i, { dueDate: e.target.value || null })} />
+                </div>
+                <Button type="button" size="icon" variant="ghost" aria-label="Remove action" onClick={() => setActions((prev) => prev.filter((_, j) => j !== i))}>
+                  <X className="size-4" />
+                </Button>
               </div>
-              <div className="min-w-0 space-y-1">
-                <Label htmlFor={`a-resp-${i}`} className="text-xs">
-                  Responsible
-                </Label>
-                <Input id={`a-resp-${i}`} value={a.responsible} onChange={(e) => setAction(i, { responsible: e.target.value })} />
-              </div>
-              <div className="min-w-0 space-y-1">
-                <Label htmlFor={`a-due-${i}`} className="text-xs">
-                  Deadline
-                </Label>
-                <Input id={`a-due-${i}`} type="date" value={a.dueDate ?? ""} onChange={(e) => setAction(i, { dueDate: e.target.value || null })} />
-              </div>
-              <Button type="button" size="icon" variant="ghost" aria-label="Remove action" onClick={() => setActions((prev) => prev.filter((_, j) => j !== i))}>
-                <X className="size-4" />
-              </Button>
-            </div>
-          ))}
-          <Button type="button" variant="outline" size="sm" onClick={() => setActions((prev) => [...prev, { action: "", responsible: header.feeEarner, dueDate: null }])}>
-            <Plus className="size-4" /> Add action
-          </Button>
-        </CardContent>
-      </Card>
+            ))}
+            <Button type="button" variant="outline" size="sm" onClick={() => setActions((prev) => [...prev, { action: "", responsible: header.feeEarner, dueDate: null }])}>
+              <Plus className="size-4" /> Add action
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
-        <Button variant="outline" disabled={busy} onClick={() => setConfirm("delete")} className="text-rose-600">
-          <Trash2 className="size-4" /> Delete draft
-        </Button>
+        {review.canDelete ? (
+          <Button variant="outline" disabled={busy} onClick={() => setConfirm("delete")} className="text-rose-600">
+            <Trash2 className="size-4" /> {completed ? "Delete review" : "Delete draft"}
+          </Button>
+        ) : (
+          <span />
+        )}
         <div className="flex flex-col gap-2 sm:flex-row">
-          <Button variant="outline" disabled={busy || !header.matterRef.trim()} onClick={saveDraft}>
-            {save.isPending && !complete.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />} Save draft
-          </Button>
-          <Button disabled={busy || !checklist.length || answered < checklist.length || !header.matterRef.trim()} onClick={() => setConfirm("complete")}>
-            <CheckCircle2 className="size-4" /> Complete review
-          </Button>
+          {completed ? (
+            <>
+              <Button variant="outline" disabled={busy} onClick={onDone}>
+                Cancel
+              </Button>
+              <Button disabled={busy || answered < checklist.length || !header.matterRef.trim()} onClick={saveDraft}>
+                {save.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />} Save changes
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="outline" disabled={busy || !header.matterRef.trim()} onClick={saveDraft}>
+                {save.isPending && !complete.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />} Save draft
+              </Button>
+              <Button disabled={busy || !checklist.length || answered < checklist.length || !header.matterRef.trim()} onClick={() => setConfirm("complete")}>
+                <CheckCircle2 className="size-4" /> Complete review
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
-      <Dialog open={confirm !== null} onOpenChange={(open) => !open && setConfirm(null)}>
+      {confirm === "delete" && <DeleteReviewDialog review={review} onClose={() => setConfirm(null)} />}
+      <Dialog open={confirm === "complete"} onOpenChange={(open) => !open && setConfirm(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{confirm === "complete" ? "Complete this review?" : "Delete this draft?"}</DialogTitle>
+            <DialogTitle>Complete this review?</DialogTitle>
             <DialogDescription>
-              {confirm === "complete"
-                ? `It is added to the File reviews register${actions.filter((a) => a.action.trim()).length ? ` with ${actions.filter((a) => a.action.trim()).length} corrective action(s)` : ""}. A completed review cannot be changed.`
-                : "The draft and its answers are deleted. This cannot be undone."}
+              {`It is added to the File reviews register${actions.filter((a) => a.action.trim()).length ? ` with ${actions.filter((a) => a.action.trim()).length} corrective action(s)` : ""}. Its answers and findings can still be corrected afterwards.`}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirm(null)}>
               Cancel
             </Button>
-            {confirm === "complete" ? (
-              <Button disabled={busy} onClick={() => void completeReview()}>
-                {busy && <Loader2 className="size-4 animate-spin" />} Complete review
-              </Button>
-            ) : (
-              <Button
-                variant="destructive"
-                disabled={busy}
-                onClick={() =>
-                  deleteDraft.mutate(review.id, {
-                    onSuccess: () => {
-                      toast.success("Draft deleted.");
-                      void navigate({ to: "/solicitor/fg-compliance/file-reviews" });
-                    },
-                    onError: (error) => toast.error("Could not delete the draft", { description: errorMessage(error) }),
-                  })
-                }
-              >
-                Delete draft
-              </Button>
-            )}
+            <Button disabled={busy} onClick={() => void completeReview()}>
+              {busy && <Loader2 className="size-4 animate-spin" />} Complete review
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

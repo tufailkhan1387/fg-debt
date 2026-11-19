@@ -6,6 +6,7 @@ import { recordAccessLog } from "../compliance-access/access-log.js";
 import { REGISTERS, registerDef, type RegisterDef } from "./registers.catalog.js";
 import { cleanEntryData, fingerprint, isOpen, todayIso, type EntryData } from "./registers.helpers.js";
 import { buildRegisterWorkbook, parseRegisterWorkbook, type ImportRow } from "./registers.workbook.js";
+import { nextOccurrence } from "../reminders/reminders.helpers.js";
 
 export interface RegisterActor {
   userId: string;
@@ -27,6 +28,8 @@ interface EntryRow {
   fingerprint: string;
   reviewed_by: string | null;
   reviewed_at: Date | null;
+  /** DATE: node-postgres returns it as local midnight. */
+  next_review_date: Date | null;
   created_by_id: string | null;
   created_by: string;
   updated_by: string | null;
@@ -48,6 +51,8 @@ export interface RegisterEntry {
   canRestrict: boolean;
   reviewedBy: string | null;
   reviewedAt: string | null;
+  /** Set once reviewed: the entry is due again on this date. */
+  nextReviewDate: string | null;
   createdBy: string;
   createdAt: string;
   updatedBy: string | null;
@@ -100,11 +105,23 @@ function toEntry(def: RegisterDef, row: EntryRow, actor: RegisterActor): Registe
     canRestrict: canRestrict(row, actor),
     reviewedBy: row.reviewed_by,
     reviewedAt: row.reviewed_at ? row.reviewed_at.toISOString() : null,
+    nextReviewDate: nextReviewOf(row),
     createdBy: row.created_by,
     createdAt: row.created_at.toISOString(),
     updatedBy: row.updated_by,
     updatedAt: row.updated_at.toISOString(),
   };
+}
+
+/** yyyy-mm-dd of a DATE column, which node-postgres reads as local midnight. */
+function isoDate(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+/** Next review of a reviewed entry; entries reviewed before a date was asked for get one month after the review. */
+function nextReviewOf(row: Pick<EntryRow, "reviewed_at" | "next_review_date">): string | null {
+  if (row.next_review_date) return isoDate(row.next_review_date);
+  return row.reviewed_at ? nextOccurrence(row.reviewed_at.toISOString().slice(0, 10), "monthly") : null;
 }
 
 /** Newest first by the register's main date, then by entry number. */
@@ -293,17 +310,22 @@ export const registersService = {
     return toEntry(def, updated, actor);
   },
 
-  /** The Principal confirms the entry has been reviewed. */
-  async markReviewed(id: string, actor: RegisterActor): Promise<RegisterEntry> {
+  /**
+   * The Principal confirms the entry has been reviewed and sets when it is next reviewed (default: in a month).
+   * Until then the entry's deadline leaves the calendar; it comes back on the next review date.
+   */
+  async markReviewed(id: string, nextReviewDate: string | undefined, actor: RegisterActor): Promise<RegisterEntry> {
     if (actor.role !== "principal") throw new AppError("Only the Principal can sign off a review.", 403, "FORBIDDEN");
+    const next = nextReviewDate ?? nextOccurrence(todayIso(), "monthly");
+    if (next <= todayIso()) throw new AppError("Choose a next review date after today.", 400, "VALIDATION_ERROR");
     const { def, row } = await getRow(id, actor);
     const updated = (
       await query<EntryRow>(
-        "UPDATE compliance_register_entries SET reviewed_by = $2, reviewed_at = NOW() WHERE id = $1 RETURNING *",
-        [id, actor.email],
+        "UPDATE compliance_register_entries SET reviewed_by = $2, reviewed_at = NOW(), next_review_date = $3 WHERE id = $1 RETURNING *",
+        [id, actor.email, next],
       )
     ).rows[0];
-    await log(actor, "register.entry_reviewed", `${def.title} ${ref(def, row.seq)}`, { register: def.key });
+    await log(actor, "register.entry_reviewed", `${def.title} ${ref(def, row.seq)}`, { register: def.key, nextReviewDate: next });
     return toEntry(def, updated, actor);
   },
 
@@ -393,12 +415,15 @@ export const registersService = {
       .filter((r) => canSee(r, viewer))
       .flatMap((r) => {
         const def = getDef(r.register_key);
-        const due = r.data[def.due!.field];
-        if (typeof due !== "string" || isOpen(def, r.data, false) === false) return [];
+        const deadline = r.data[def.due!.field];
+        if (typeof deadline !== "string" || isOpen(def, r.data, false) === false) return [];
+        // Once reviewed, the entry is due again on its next review date (or its own deadline, if that is later).
+        const nextReview = nextReviewOf(r);
+        const due = nextReview && nextReview > deadline ? nextReview : deadline;
         // A short label from the entry's first long text field, e.g. the action or undertaking.
         const textField = def.fields.find((f) => f.type === "longtext" && r.data[f.key]);
         const summary = textField ? String(r.data[textField.key]).slice(0, 80) : "";
-        return [{ id: r.id, registerKey: def.key, ref: ref(def, r.seq), label: def.due!.label, summary, dueDate: due, owner: String(r.data["responsible"] ?? r.data["givenBy"] ?? "") }];
+        return [{ id: r.id, registerKey: def.key, ref: ref(def, r.seq), label: due === nextReview ? `Next review of ${def.due!.label.toLowerCase()}` : def.due!.label, summary, dueDate: due, owner: String(r.data["responsible"] ?? r.data["givenBy"] ?? "") }];
       });
   },
 };

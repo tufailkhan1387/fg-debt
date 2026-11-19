@@ -50,8 +50,9 @@ function SolicitorSidebarContent({ onNavigate }: { onNavigate?: () => void }) {
     if (!item.access) return true;
     if (me.data?.role === "principal") return true;
     if (item.access === "principal") return false;
-    const level = me.data?.permissions?.[item.access];
-    return !!level && level !== "none";
+    const [area, needed] = item.access.split(":");
+    const level = me.data?.permissions?.[area!];
+    return needed === "full" ? level === "full" : !!level && level !== "none";
   };
   const [menuSearch, setMenuSearch] = useState("");
   const term = menuSearch.trim().toLowerCase();

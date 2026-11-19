@@ -3,7 +3,21 @@ import { apiRequest } from "@/lib/api";
 import type { ComplianceRole } from "@/lib/auth";
 import { downloadCsvExport } from "@/lib/download-export";
 
-export type AccessLevel = "none" | "view" | "edit";
+/** "full": everything the Principal can do in that area (approve, sign off, delete, restore...). */
+export type AccessLevel = "none" | "view" | "edit" | "full";
+
+const LEVEL_RANK: Record<AccessLevel, number> = { none: 0, view: 1, edit: 2, full: 3 };
+
+/** The Principal, or someone given at least `level` on this area. */
+export function hasAccess(me: Pick<ComplianceMe, "role" | "permissions"> | undefined, area: string, level: AccessLevel = "view") {
+  if (me?.role === "principal") return true;
+  return LEVEL_RANK[me?.permissions?.[area] ?? "none"] >= LEVEL_RANK[level];
+}
+
+/** The Principal's powers in this area: the Principal, or full access to it. */
+export function hasFullAccess(me: Pick<ComplianceMe, "role" | "permissions"> | undefined, area: string) {
+  return hasAccess(me, area, "full");
+}
 
 export interface ComplianceModuleInfo {
   id: string;
