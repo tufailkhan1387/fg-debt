@@ -417,13 +417,13 @@ export const registersService = {
         const def = getDef(r.register_key);
         const deadline = r.data[def.due!.field];
         if (typeof deadline !== "string" || isOpen(def, r.data, false) === false) return [];
-        // Once reviewed, the entry is due again on its next review date (or its own deadline, if that is later).
+        // Once reviewed, the entry is due again on the next review date chosen at the review.
         const nextReview = nextReviewOf(r);
-        const due = nextReview && nextReview > deadline ? nextReview : deadline;
+        const due = nextReview ?? deadline;
         // A short label from the entry's first long text field, e.g. the action or undertaking.
         const textField = def.fields.find((f) => f.type === "longtext" && r.data[f.key]);
         const summary = textField ? String(r.data[textField.key]).slice(0, 80) : "";
-        return [{ id: r.id, registerKey: def.key, ref: ref(def, r.seq), label: due === nextReview ? `Next review of ${def.due!.label.toLowerCase()}` : def.due!.label, summary, dueDate: due, owner: String(r.data["responsible"] ?? r.data["givenBy"] ?? "") }];
+        return [{ id: r.id, registerKey: def.key, ref: ref(def, r.seq), label: due === nextReview ? `Next review of ${def.due!.label.toLowerCase()}` : def.due!.label, summary, dueDate: due, owner: String(r.data["responsible"] ?? r.data["givenBy"] ?? ""), reviewedOn: r.reviewed_at ? isoDate(r.reviewed_at) : null }];
       });
   },
 };

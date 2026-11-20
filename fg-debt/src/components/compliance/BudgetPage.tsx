@@ -15,7 +15,7 @@ import { SolicitorDataLoading } from "@/components/solicitor/SolicitorDataStates
 import { formatDate } from "@/components/compliance/policy-badges";
 import { errorMessage } from "@/components/compliance/BusinessPage";
 import { ApiError } from "@/lib/api";
-import { hasFullAccess, useComplianceMe } from "@/lib/compliance-access-api";
+import { hasAccess, hasFullAccess, useComplianceMe } from "@/lib/compliance-access-api";
 import {
   downloadVarianceReport,
   exportBudget,
@@ -84,7 +84,7 @@ export function BudgetPage({ budgetId }: { budgetId: string }) {
   }
 
   const b = budget.data;
-  const canEdit = me.data?.permissions?.["business"] === "edit";
+  const canEdit = hasAccess(me.data, "business", "edit");
   // The Principal, or full access to this area.
   const isPrincipal = hasFullAccess(me.data, "business");
 

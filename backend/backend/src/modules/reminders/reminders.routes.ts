@@ -17,6 +17,8 @@ remindersRouter.post("/tasks", authenticate, canEdit, c.create);
 remindersRouter.patch("/tasks/:id", authenticate, canEdit, c.update);
 remindersRouter.post("/tasks/:id/complete", authenticate, canEdit, c.complete);
 remindersRouter.post("/tasks/:id/cancel", authenticate, canEdit, c.cancel);
+// Deleting from Done: the Principal, or full access to the calendar.
+remindersRouter.delete("/done/:id", authenticate, principal, c.removeDone);
 
 remindersRouter.get("/suggestions", authenticate, canEdit, c.suggestions);
 remindersRouter.post("/suggestions", authenticate, canEdit, c.addSuggestions);

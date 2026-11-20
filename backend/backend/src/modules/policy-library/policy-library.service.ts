@@ -8,7 +8,7 @@ import { readEncryptedFile, removeStoredFiles, storeEncryptedFile } from "../../
 import type { ComplianceRole } from "../auth/auth.types.js";
 import { recordAccessLog } from "../compliance-access/access-log.js";
 import { effectivePermissions, hasAccess } from "../compliance-access/access.helpers.js";
-import type { AccessLevel } from "../compliance-access/access.types.js";
+import type { AccessLevel, PermissionMap } from "../compliance-access/access.types.js";
 import {
   nextPolicyReviewDate,
   reviewState,
@@ -21,6 +21,7 @@ import {
   type PolicyCategory,
   type PolicyAcknowledgement,
   type PolicyDetail,
+  type PolicyKind,
   type PolicyRow,
   type PolicySummary,
   type VersionRow,
@@ -32,6 +33,8 @@ export interface PolicyActor {
   email: string;
   role: ComplianceRole;
   ip?: string | null;
+  /** The user's rights. Without them (calls from other modules) only the Principal's role counts. */
+  permissions?: PermissionMap;
 }
 
 interface UploadedFile {
@@ -63,10 +66,33 @@ function log(actor: PolicyActor, action: string, entityId: string, details: Reco
   });
 }
 
-function requirePrincipal(actor: PolicyActor, what: string) {
-  if (actor.role !== "principal") {
-    throw new AppError(`Only the Principal can ${what}.`, 403, "FORBIDDEN");
-  }
+const LEVEL_RANK: Record<AccessLevel, number> = { none: 0, view: 1, edit: 2, full: 3 };
+
+/** Policies follow Policy Library rights; procedures follow Procedure Library rights. */
+function moduleFor(kind: PolicyKind): "policies" | "procedures" {
+  return kind === "procedure" ? "procedures" : "policies";
+}
+
+function can(actor: PolicyActor, kind: PolicyKind, needed: AccessLevel): boolean {
+  if (!actor.permissions) return actor.role === "principal" || needed === "view";
+  return LEVEL_RANK[actor.permissions[moduleFor(kind)]] >= LEVEL_RANK[needed];
+}
+
+function assertCan(actor: PolicyActor, kind: PolicyKind, needed: AccessLevel, what?: string) {
+  if (can(actor, kind, needed)) return;
+  const library = kind === "procedure" ? "the Procedure Library" : "the Policy Library";
+  throw new AppError(
+    what ? `Only the Principal or someone with full access to ${library} can ${what}.` : `You do not have access to ${library}.`,
+    403,
+    "FORBIDDEN",
+  );
+}
+
+/** A policy row the caller may see; others are reported as not found. */
+async function getVisiblePolicyRow(id: string, actor: PolicyActor): Promise<PolicyRow> {
+  const row = await getPolicyRow(id);
+  if (!can(actor, row.kind, "view")) throw new AppError("Policy not found.", 404, "POLICY_NOT_FOUND");
+  return row;
 }
 
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -223,7 +249,7 @@ async function buildPolicies(rows: PolicyRow[], actor: PolicyActor): Promise<Pol
 }
 
 /** Everyone who can see policies, and whether they acknowledged the given version. */
-async function acknowledgementsFor(versionId: string): Promise<PolicyAcknowledgement[]> {
+async function acknowledgementsFor(versionId: string, kind: PolicyKind): Promise<PolicyAcknowledgement[]> {
   const users = (
     await query<{ id: string; first_name: string; last_name: string; email: string; compliance_role: ComplianceRole }>(
       `SELECT id, first_name, last_name, email, compliance_role FROM users
@@ -246,7 +272,7 @@ async function acknowledgementsFor(versionId: string): Promise<PolicyAcknowledge
 
   return users
     .filter((user) =>
-      hasAccess(effectivePermissions(user.compliance_role, permissions.filter((p) => p.user_id === user.id)), "policies", "view"),
+      hasAccess(effectivePermissions(user.compliance_role, permissions.filter((p) => p.user_id === user.id)), moduleFor(kind), "view"),
     )
     .map((user) => {
       const ack = acks.find((a) => a.user_id === user.id);
@@ -261,7 +287,9 @@ async function acknowledgementsFor(versionId: string): Promise<PolicyAcknowledge
 
 export const policyLibraryService = {
   async list(actor: PolicyActor): Promise<{ policies: Policy[]; summary: PolicySummary; categories: readonly string[] }> {
-    const rows = (await query<PolicyRow>(`SELECT ${POLICY_COLUMNS} FROM compliance_policies ORDER BY LOWER(title)`)).rows;
+    const rows = (await query<PolicyRow>(`SELECT ${POLICY_COLUMNS} FROM compliance_policies ORDER BY LOWER(title)`)).rows.filter((row) =>
+      can(actor, row.kind, "view"),
+    );
     const policies = await buildPolicies(rows, actor);
     const categories = (await this.categories()).map((c) => c.name);
     return { policies, summary: summarizePolicies(policies), categories };
@@ -330,7 +358,7 @@ export const policyLibraryService = {
   },
 
   async get(id: string, actor: PolicyActor): Promise<PolicyDetail> {
-    const row = await getPolicyRow(id);
+    const row = await getVisiblePolicyRow(id, actor);
     const [policy] = await buildPolicies([row], actor);
     const versions = (
       await query<VersionRow>(
@@ -339,12 +367,13 @@ export const policyLibraryService = {
       )
     ).rows.map(toVersion);
     const acknowledgements =
-      actor.role === "principal" && row.current_version_id ? await acknowledgementsFor(row.current_version_id) : null;
+      can(actor, row.kind, "full") && row.current_version_id ? await acknowledgementsFor(row.current_version_id, row.kind) : null;
     return { ...policy, versions, acknowledgements };
   },
 
   async create(input: CreatePolicyInput, file: UploadedFile, actor: PolicyActor): Promise<PolicyDetail> {
-    if (input.approveNow) requirePrincipal(actor, "approve policies");
+    assertCan(actor, input.kind, "edit");
+    if (input.approveNow) assertCan(actor, input.kind, "full", "approve it straight away");
     const written: WrittenFiles = [];
     const id = await inTransaction(async (client) => {
       const policy = (
@@ -376,7 +405,10 @@ export const policyLibraryService = {
   },
 
   async update(id: string, input: UpdatePolicyInput, actor: PolicyActor): Promise<PolicyDetail> {
-    const before = await getPolicyRow(id);
+    const before = await getVisiblePolicyRow(id, actor);
+    assertCan(actor, before.kind, "edit");
+    // Moving an entry between the libraries needs edit rights on both.
+    if (input.kind) assertCan(actor, input.kind, "edit");
     const frequency = input.reviewFrequency ?? before.review_frequency;
     // A new frequency counts from the last review; without one there is no review date yet.
     const nextReview =
@@ -411,7 +443,8 @@ export const policyLibraryService = {
 
   /** Submits an amended document. It only takes effect once the Principal approves it. */
   async addVersion(id: string, file: UploadedFile, changeSummary: string, actor: PolicyActor): Promise<PolicyDetail> {
-    const policy = await getPolicyRow(id);
+    const policy = await getVisiblePolicyRow(id, actor);
+    assertCan(actor, policy.kind, "edit");
     if (policy.archived) throw new AppError("This policy is archived. Restore it before adding a version.", 400, "POLICY_ARCHIVED");
     const written: WrittenFiles = [];
     const version = await inTransaction(async (client) => {
@@ -436,7 +469,8 @@ export const policyLibraryService = {
 
   /** Text of the version in force (or the latest one), in the format the in-app editor saves back to Word. */
   async editableText(id: string, actor: PolicyActor): Promise<{ text: string; versionNumber: number; fileName: string }> {
-    const policy = await getPolicyRow(id);
+    const policy = await getVisiblePolicyRow(id, actor);
+    assertCan(actor, policy.kind, "edit");
     const version = (
       await query<VersionRow>(
         `SELECT ${VERSION_COLUMNS} FROM compliance_policy_versions WHERE policy_id = $1
@@ -462,7 +496,8 @@ export const policyLibraryService = {
 
   /** Saves wording edited in the app as a new Word version. Like an upload, it needs the Principal's approval. */
   async saveEditedText(id: string, text: string, changeSummary: string, actor: PolicyActor): Promise<PolicyDetail> {
-    const policy = await getPolicyRow(id);
+    const policy = await getVisiblePolicyRow(id, actor);
+    assertCan(actor, policy.kind, "edit");
     const buffer = await draftToDocx(policy.title, text);
     return this.addVersion(
       id,
@@ -474,8 +509,8 @@ export const policyLibraryService = {
 
   /** Permanently removes a policy with every version, its files and acknowledgements. The access log keeps the record. */
   async remove(id: string, actor: PolicyActor): Promise<void> {
-    requirePrincipal(actor, "delete policies");
-    const policy = await getPolicyRow(id);
+    const policy = await getVisiblePolicyRow(id, actor);
+    assertCan(actor, policy.kind, "full", "delete it");
     const files = (
       await query<{ storage_path: string; version_number: number }>(
         "SELECT storage_path, version_number FROM compliance_policy_versions WHERE policy_id = $1",
@@ -488,8 +523,8 @@ export const policyLibraryService = {
   },
 
   async approve(versionId: string, approvedOn: string | undefined, actor: PolicyActor): Promise<PolicyDetail> {
-    requirePrincipal(actor, "approve policies");
     const version = await getVersionRow(versionId);
+    assertCan(actor, (await getVisiblePolicyRow(version.policy_id, actor)).kind, "full", "approve it");
     if (version.status !== "pending") {
       throw new AppError("Only a version waiting for approval can be approved.", 400, "VERSION_NOT_PENDING");
     }
@@ -501,8 +536,8 @@ export const policyLibraryService = {
   },
 
   async reject(versionId: string, reason: string, actor: PolicyActor): Promise<PolicyDetail> {
-    requirePrincipal(actor, "reject policy versions");
     const version = await getVersionRow(versionId);
+    assertCan(actor, (await getVisiblePolicyRow(version.policy_id, actor)).kind, "full", "reject a version");
     if (version.status !== "pending") {
       throw new AppError("Only a version waiting for approval can be rejected.", 400, "VERSION_NOT_PENDING");
     }
@@ -516,15 +551,19 @@ export const policyLibraryService = {
     return detail;
   },
 
-  /** The Principal confirms the policy was reviewed and still stands; the next review date moves on. */
-  async markReviewed(id: string, actor: PolicyActor): Promise<PolicyDetail> {
-    requirePrincipal(actor, "sign off policy reviews");
-    const policy = await getPolicyRow(id);
+  /**
+   * The Principal confirms the policy was reviewed and still stands. The next review is the date chosen (for
+   * example a follow-up), or else follows the policy's review frequency.
+   */
+  async markReviewed(id: string, nextReview: string | undefined, actor: PolicyActor): Promise<PolicyDetail> {
+    const policy = await getVisiblePolicyRow(id, actor);
+    assertCan(actor, policy.kind, "full", "sign off its review");
     if (!policy.current_version_id) {
       throw new AppError("Approve a version of this policy before recording a review.", 400, "POLICY_NOT_IN_FORCE");
     }
     const today = todayIso();
-    const next = nextPolicyReviewDate(today, policy.review_frequency);
+    if (nextReview && nextReview <= today) throw new AppError("Choose a next review date after today.", 400, "VALIDATION_ERROR");
+    const next = nextReview ?? nextPolicyReviewDate(today, policy.review_frequency);
     await query(
       `UPDATE compliance_policies SET last_reviewed_at = $2, next_review_date = $3, updated_by = $4, updated_at = NOW()
        WHERE id = $1`,
@@ -535,7 +574,7 @@ export const policyLibraryService = {
   },
 
   async acknowledge(id: string, actor: PolicyActor): Promise<PolicyDetail> {
-    const policy = await getPolicyRow(id);
+    const policy = await getVisiblePolicyRow(id, actor);
     if (!policy.current_version_id) {
       throw new AppError("There is no approved version of this policy to acknowledge yet.", 400, "POLICY_NOT_IN_FORCE");
     }
@@ -552,8 +591,8 @@ export const policyLibraryService = {
   },
 
   async setArchived(id: string, archived: boolean, actor: PolicyActor): Promise<PolicyDetail> {
-    requirePrincipal(actor, "archive policies");
-    const policy = await getPolicyRow(id);
+    const policy = await getVisiblePolicyRow(id, actor);
+    assertCan(actor, policy.kind, "full", "archive it");
     await query("UPDATE compliance_policies SET archived = $2, updated_by = $3, updated_at = NOW() WHERE id = $1", [
       id,
       archived,
@@ -566,7 +605,7 @@ export const policyLibraryService = {
   /** Decrypts a stored version and checks it was not altered on disk. */
   async download(versionId: string, actor: PolicyActor): Promise<{ buffer: Buffer; fileName: string; mimeType: string }> {
     const version = await getVersionRow(versionId);
-    const policy = await getPolicyRow(version.policy_id);
+    const policy = await getVisiblePolicyRow(version.policy_id, actor);
     const buffer = await readEncryptedFile(version.storage_path, version.sha256);
     await log(actor, "policy.downloaded", policy.title, { version: version.version_number, fileName: version.file_name });
     return { buffer, fileName: version.file_name, mimeType: version.mime_type };

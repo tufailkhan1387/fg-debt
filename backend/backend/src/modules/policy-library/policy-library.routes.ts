@@ -6,10 +6,12 @@ import { policyLibraryController as c } from "./policy-library.controller.js";
 
 export const policyLibraryRouter = Router();
 
-const canView = requireCompliance("policies", "view");
-const canEdit = requireCompliance("policies", "edit");
-// The Principal, or anyone given full access to this area.
-const principal = requireCompliance("policies", "full");
+// Policies and procedures share these routes; Policy Library rights cover policies and Procedure Library rights
+// cover procedures. The service checks the right one for each entry.
+const canView = requireCompliance("policies", "view", "procedures");
+const canEdit = requireCompliance("policies", "edit", "procedures");
+// The Principal, or anyone given full access to the Policy or Procedure Library.
+const principal = requireCompliance("policies", "full", "procedures");
 const upload = policyDocumentUploadMiddleware.single("file");
 
 policyLibraryRouter.get("/", authenticate, canView, c.list);

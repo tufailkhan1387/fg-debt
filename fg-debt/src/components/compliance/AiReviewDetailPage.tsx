@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SolicitorDataLoading } from "@/components/solicitor/SolicitorDataStates";
 import { ReviewStatusBadge } from "@/components/compliance/AiReviewsPage";
 import { ApiError } from "@/lib/api";
-import { useComplianceMe } from "@/lib/compliance-access-api";
+import { hasAccess, useComplianceMe } from "@/lib/compliance-access-api";
 import {
   downloadDraft,
   useAiReview,
@@ -53,8 +53,8 @@ export function AiReviewDetailPage({ reviewId }: { reviewId: string }) {
     );
   }
 
-  const canEdit = me.data?.permissions?.["documents"] === "edit";
-  const canSendToLibrary = me.data?.permissions?.["policies"] === "edit";
+  const canEdit = hasAccess(me.data, "documents", "edit");
+  const canSendToLibrary = hasAccess(me.data, "policies", "edit");
   const redactionCount = Object.values(review.redactions).reduce((a, b) => a + b, 0);
 
   return (

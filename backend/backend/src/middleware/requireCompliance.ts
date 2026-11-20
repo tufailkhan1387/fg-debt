@@ -9,10 +9,15 @@ import type { AccessLevel, ComplianceModule } from "../modules/compliance-access
  * Guards a compliance route. `"principal"` limits it to Principals, `"member"` lets in anyone with a compliance
  * role (pages that filter their own content by rights), and a module id checks that module's rights.
  * A user with "full" access to the module is treated as the Principal for that request.
+ * `orArea` also lets in someone with that level on a second module (e.g. Staff Training or Performance Evaluation).
  * Allowed reads and every refused request are written to the compliance access log
  * (changes are logged with details by services).
  */
-export function requireCompliance(area: ComplianceModule | "principal" | "member", level: Exclude<AccessLevel, "none"> = "view") {
+export function requireCompliance(
+  area: ComplianceModule | "principal" | "member",
+  level: Exclude<AccessLevel, "none"> = "view",
+  orArea?: ComplianceModule,
+) {
   return async (req: Request, _res: Response, next: NextFunction) => {
     try {
       if (!req.auth?.sub || req.auth.role !== "solicitor") {
@@ -21,7 +26,11 @@ export function requireCompliance(area: ComplianceModule | "principal" | "member
       const access = await accessService.getAccess(req.auth.sub);
       const allowed =
         access &&
-        (area === "member" ? true : area === "principal" ? access.role === "principal" : hasAccess(access.permissions, area, level));
+        (area === "member"
+          ? true
+          : area === "principal"
+            ? access.role === "principal"
+            : hasAccess(access.permissions, area, level) || (!!orArea && hasAccess(access.permissions, orArea, level)));
       if (!access || !allowed) {
         await recordAccessLog({
           userId: req.auth.sub,

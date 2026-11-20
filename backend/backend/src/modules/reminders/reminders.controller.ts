@@ -71,6 +71,11 @@ export const remindersController = {
     res.json({ success: true, data: { task } });
   }),
 
+  removeDone: handle(async (req, res) => {
+    await remindersService.removeDone(idParam(req.params.id), actorOf(req));
+    res.json({ success: true, data: { removed: true } });
+  }),
+
   suggestions: handle(async (_req, res) => {
     res.json({ success: true, data: { suggestions: await remindersService.suggestions() } });
   }),

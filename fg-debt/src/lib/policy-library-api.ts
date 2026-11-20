@@ -170,6 +170,13 @@ export function useRejectVersion() {
   );
 }
 
+/** Records a review; the next review follows the policy's frequency unless a date is given. */
+export function useReviewPolicy() {
+  return usePolicyMutation(({ id, nextReviewDate }: { id: string; nextReviewDate?: string | undefined }) =>
+    apiRequest<{ policy: PolicyDetail }>(`${BASE}/${encodeURIComponent(id)}/review`, { method: "POST", body: { nextReviewDate } }),
+  );
+}
+
 export function usePolicyAction(action: "review" | "acknowledge") {
   return usePolicyMutation((id: string) =>
     apiRequest<{ policy: PolicyDetail }>(`${BASE}/${encodeURIComponent(id)}/${action}`, { method: "POST" }),

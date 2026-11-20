@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { SolicitorDataLoading } from "@/components/solicitor/SolicitorDataStates";
 import { formatDate } from "@/components/compliance/policy-badges";
 import { ApiError } from "@/lib/api";
-import { hasFullAccess, useComplianceMe } from "@/lib/compliance-access-api";
+import { hasAccess, hasFullAccess, useComplianceMe } from "@/lib/compliance-access-api";
 import {
   downloadBudgetTemplate,
   downloadBusinessFile,
@@ -53,7 +53,7 @@ export function BusinessPage() {
   const business = useBusiness();
   const [creating, setCreating] = useState(false);
 
-  const canEdit = me.data?.permissions?.["business"] === "edit";
+  const canEdit = hasAccess(me.data, "business", "edit");
   // The Principal, or full access to this area.
   const isPrincipal = hasFullAccess(me.data, "business");
 

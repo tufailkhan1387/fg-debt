@@ -2,6 +2,7 @@ import { query } from "../../db/pool.js";
 import { AppError } from "../../middleware/appError.js";
 import { readEncryptedFile, removeStoredFiles, storeEncryptedFile } from "../../utils/encrypted-store.js";
 import { recordAccessLog } from "../compliance-access/access-log.js";
+import type { AccessLevel, PermissionMap } from "../compliance-access/access.types.js";
 import { todayIso } from "../registers/registers.helpers.js";
 import { registersService, type RegisterActor, type RegisterEntry } from "../registers/registers.service.js";
 import { checkAppraisalForm, totalScore, type AppraisalForm } from "./appraisal-form.js";
@@ -120,9 +121,20 @@ function log(actor: RegisterActor, action: string, entityId: string, details: Re
 
 const norm = (s: string) => s.trim().toLowerCase();
 
-/** Appraisals are personal; only the Principal sees and records them. */
-function canSeeRecord(kind: RecordKind, actor: RegisterActor) {
-  return kind !== "appraisal" || actor.role === "principal";
+/** The route passes the user's rights so appraisals can follow Performance Evaluation access. */
+export type TrainingActor = RegisterActor & { permissions?: PermissionMap };
+
+const LEVEL_RANK: Record<AccessLevel, number> = { none: 0, view: 1, edit: 2, full: 3 };
+
+/** The Principal (or full access to Staff Training on this request) has every right here. */
+function can(actor: TrainingActor, module: "training" | "performance", needed: AccessLevel) {
+  if (actor.role === "principal") return true;
+  return LEVEL_RANK[actor.permissions?.[module] ?? "none"] >= LEVEL_RANK[needed];
+}
+
+/** Appraisals are personal: they follow Performance Evaluation rights; other records follow Staff Training rights. */
+function canSeeRecord(kind: RecordKind, actor: TrainingActor) {
+  return can(actor, kind === "appraisal" ? "performance" : "training", "view");
 }
 
 function toRecord(row: RecordRow) {
@@ -236,8 +248,13 @@ async function getRecordRow(id: string, actor: RegisterActor): Promise<RecordRow
   return row;
 }
 
-function assertCanWriteKind(kind: RecordKind, actor: RegisterActor) {
-  if (!canSeeRecord(kind, actor)) throw new AppError("Only the Principal records appraisals.", 403, "FORBIDDEN");
+function assertCanWriteKind(kind: RecordKind, actor: TrainingActor, needed: AccessLevel = "edit") {
+  if (can(actor, kind === "appraisal" ? "performance" : "training", needed)) return;
+  throw new AppError(
+    kind === "appraisal" ? "You do not have access to change performance evaluations." : "You do not have access to change training records.",
+    403,
+    "FORBIDDEN",
+  );
 }
 
 /** Two staff with the same name would be indistinguishable in the training register. */
@@ -278,7 +295,7 @@ export const trainingService = {
       records: mine.filter((r) => canSeeRecord(r.kind, actor)).map(toRecord),
       training: training.sort((a, b) => (b.date ?? "").localeCompare(a.date ?? "")),
       requirements: checkRequirements(s, required, training, today),
-      canSeeAppraisals: actor.role === "principal",
+      canSeeAppraisals: can(actor, "performance", "view"),
     };
   },
 
@@ -372,6 +389,7 @@ export const trainingService = {
   /** Principal only (the route checks): removes a record added by mistake, with its file. */
   async removeRecord(id: string, actor: RegisterActor) {
     const row = await getRecordRow(id, actor);
+    assertCanWriteKind(row.kind, actor, "full");
     await query("DELETE FROM compliance_staff_records WHERE id = $1", [id]);
     if (row.storage_path) await removeStoredFiles([row.storage_path]);
     const s = await getStaffRow(row.staff_id);
@@ -379,9 +397,10 @@ export const trainingService = {
     return this.get(row.staff_id, actor);
   },
 
-  /** Principal only (the route checks): fills in the structured appraisal form on an appraisal record. */
+  /** Fills in the structured appraisal form on an appraisal record (Performance Evaluation edit access). */
   async saveAppraisalForm(id: string, form: AppraisalForm, actor: RegisterActor) {
     const row = await getRecordRow(id, actor);
+    assertCanWriteKind(row.kind, actor);
     if (row.kind !== "appraisal") throw new AppError("Only an appraisal record has an appraisal form.", 400, "NOT_AN_APPRAISAL");
     checkAppraisalForm(form);
     await query("UPDATE compliance_staff_records SET form = $2, updated_by = $3, updated_at = NOW() WHERE id = $1", [id, JSON.stringify(form), actor.email]);

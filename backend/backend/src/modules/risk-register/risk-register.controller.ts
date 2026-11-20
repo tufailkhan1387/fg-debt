@@ -31,6 +31,16 @@ function uploadedFile(req: Request): Express.Multer.File {
   return req.file;
 }
 
+/** Optional next review date (YYYY-MM-DD) sent with a review. */
+function reviewDateOf(body: unknown): string | undefined {
+  const value = (body as { nextReviewDate?: unknown } | undefined)?.nextReviewDate;
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    throw new AppError("Use a date like 2026-12-31.", 400, "VALIDATION_ERROR");
+  }
+  return value;
+}
+
 export const riskRegisterController = {
   async list(_req: Request, res: Response, next: NextFunction) {
     try {
@@ -78,7 +88,7 @@ export const riskRegisterController = {
 
   async markReviewed(req: Request, res: Response, next: NextFunction) {
     try {
-      const risk = await riskRegisterService.markReviewed(idParam(req.params.id), actorOf(req));
+      const risk = await riskRegisterService.markReviewed(idParam(req.params.id), reviewDateOf(req.body), actorOf(req));
       res.json({ success: true, data: { risk } });
     } catch (error) {
       next(error);

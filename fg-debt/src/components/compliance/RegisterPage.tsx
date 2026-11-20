@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { SolicitorDataLoading } from "@/components/solicitor/SolicitorDataStates";
 import { formatDate } from "@/components/compliance/policy-badges";
 import { ApiError } from "@/lib/api";
-import { hasFullAccess, useComplianceMe, useFirmUsers } from "@/lib/compliance-access-api";
+import { hasAccess, hasFullAccess, useComplianceMe, useFirmUsers } from "@/lib/compliance-access-api";
 import {
   exportRegister,
   previewRegisterImport,
@@ -81,7 +81,7 @@ export function RegisterPage({ registerKey }: { registerKey: string }) {
   const [deleting, setDeleting] = useState<RegisterEntry | null>(null);
 
   const def = registers.data?.catalog.find((r) => r.key === registerKey);
-  const canEdit = me.data?.permissions?.["registers"] === "edit";
+  const canEdit = hasAccess(me.data, "registers", "edit");
   // The Principal, or full access to this area.
   const isPrincipal = hasFullAccess(me.data, "registers");
 

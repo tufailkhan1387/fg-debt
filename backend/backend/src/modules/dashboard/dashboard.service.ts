@@ -184,7 +184,8 @@ export const dashboardService = {
     }
 
     let policies: Dashboard["policies"] = null;
-    if (hasAccess(actor.permissions, "policies", "view")) {
+    // The list holds only the policies and procedures this person has rights to.
+    if (hasAccess(actor.permissions, "policies", "view") || hasAccess(actor.permissions, "procedures", "view")) {
       const { policies: all, summary } = await policyLibraryService.list(actor);
       const active = all.filter((p) => !p.archived);
       const audience = isPrincipal ? await policyAudience() : 0;

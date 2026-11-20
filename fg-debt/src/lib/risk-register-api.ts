@@ -143,8 +143,8 @@ export function useDeleteRisk() {
 }
 
 export function useMarkRiskReviewed() {
-  return useRiskMutation((id: string) =>
-    apiRequest<{ risk: Risk }>(`${BASE}/${encodeURIComponent(id)}/review`, { method: "POST" }),
+  return useRiskMutation(({ id, nextReviewDate }: { id: string; nextReviewDate?: string | undefined }) =>
+    apiRequest<{ risk: Risk }>(`${BASE}/${encodeURIComponent(id)}/review`, { method: "POST", body: { nextReviewDate } }),
   );
 }
 

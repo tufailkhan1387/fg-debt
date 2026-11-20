@@ -13,6 +13,7 @@ import {
   Pencil,
   Plus,
   Repeat,
+  Trash2,
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -37,7 +38,7 @@ import { SolicitorStatCard } from "@/components/solicitor/SolicitorStatCard";
 import { SolicitorDataLoading } from "@/components/solicitor/SolicitorDataStates";
 import { formatDate } from "@/components/compliance/policy-badges";
 import { ApiError } from "@/lib/api";
-import { hasFullAccess, useComplianceMe } from "@/lib/compliance-access-api";
+import { hasAccess, hasFullAccess, useComplianceMe } from "@/lib/compliance-access-api";
 import {
   RECURRENCE_LABELS,
   reminderSearch,
@@ -47,6 +48,7 @@ import {
   useCompleteTask,
   useCreateTask,
   useDigestStatus,
+  useRemoveDone,
   useReminders,
   useSendDigest,
   useSuggestions,
@@ -97,7 +99,7 @@ export function ComplianceCalendarPage() {
   const [search, setSearch] = useState("");
   const [dialog, setDialog] = useState<{ type: "add" } | { type: "edit" | "complete" | "cancel"; task: Task } | { type: "suggestions" } | null>(null);
 
-  const canEdit = me.data?.permissions?.["reminders"] === "edit";
+  const canEdit = hasAccess(me.data, "reminders", "edit");
   // The Principal, or full access to this area.
   const isPrincipal = hasFullAccess(me.data, "reminders");
 
@@ -207,7 +209,7 @@ export function ComplianceCalendarPage() {
       </div>
 
       {view === "history" ? (
-        <HistoryTable />
+        <HistoryTable canDelete={isPrincipal} />
       ) : items.length === 0 ? (
         <Card className="surface-card">
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
@@ -391,8 +393,9 @@ function EmailRemindersCard() {
   );
 }
 
-function HistoryTable() {
+function HistoryTable({ canDelete }: { canDelete: boolean }) {
   const { data, isLoading } = useTaskHistory(true);
+  const [removing, setRemoving] = useState<Task | null>(null);
   if (isLoading) return <SolicitorDataLoading label="Loading history…" />;
   return (
     <Card className="surface-card">
@@ -404,12 +407,13 @@ function HistoryTable() {
               <TableHead className="text-xs font-semibold">Was due</TableHead>
               <TableHead className="text-xs font-semibold">Outcome</TableHead>
               <TableHead className="text-xs font-semibold">Note</TableHead>
+              {canDelete && <TableHead className="w-10" />}
             </TableRow>
           </TableHeader>
           <TableBody>
             {!data?.length ? (
               <TableRow>
-                <TableCell colSpan={4} className="py-10 text-center text-sm text-muted-foreground">
+                <TableCell colSpan={canDelete ? 5 : 4} className="py-10 text-center text-sm text-muted-foreground">
                   Nothing completed yet.
                 </TableCell>
               </TableRow>
@@ -433,6 +437,13 @@ function HistoryTable() {
                       </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground">{task.completionNote || "—"}</TableCell>
+                    {canDelete && (
+                      <TableCell>
+                        <Button size="sm" variant="ghost" aria-label="Delete" onClick={() => setRemoving(task)}>
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </TableCell>
+                    )}
                   </TableRow>
                 );
               })
@@ -440,7 +451,47 @@ function HistoryTable() {
           </TableBody>
         </Table>
       </CardContent>
+      {removing && <RemoveDoneDialog task={removing} onClose={() => setRemoving(null)} />}
     </Card>
+  );
+}
+
+function RemoveDoneDialog({ task, onClose }: { task: Task; onClose: () => void }) {
+  const remove = useRemoveDone();
+  const isReview = task.id.startsWith("review:");
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Delete "{task.title}" from Done?</DialogTitle>
+          <DialogDescription>
+            {isReview
+              ? "The review is taken off this list. The access log still keeps the record that it was reviewed."
+              : "The task is deleted for good. The access log keeps a record that it was done and that you deleted it."}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={remove.isPending}
+            onClick={() =>
+              remove.mutate(task.id, {
+                onSuccess: () => {
+                  toast.success("Deleted from Done.");
+                  onClose();
+                },
+                onError: (error) => toast.error("Could not delete it", { description: errorMessage(error) }),
+              })
+            }
+          >
+            {remove.isPending && <Loader2 className="size-4 animate-spin" />} Delete
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

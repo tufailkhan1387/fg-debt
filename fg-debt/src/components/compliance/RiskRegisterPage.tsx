@@ -14,6 +14,7 @@ import {
   Upload,
 } from "lucide-react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
+import { NextReviewDialog } from "@/components/compliance/NextReviewDialog";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,7 +36,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { SolicitorStatCard } from "@/components/solicitor/SolicitorStatCard";
 import { SolicitorDataLoading } from "@/components/solicitor/SolicitorDataStates";
 import { ApiError } from "@/lib/api";
-import { hasFullAccess, useComplianceMe } from "@/lib/compliance-access-api";
+import { hasAccess, hasFullAccess, useComplianceMe } from "@/lib/compliance-access-api";
 import {
   exportRiskRegister,
   FREQUENCY_LABELS,
@@ -102,7 +103,7 @@ export function RiskRegisterPage() {
   const [exporting, setExporting] = useState(false);
   const [deleting, setDeleting] = useState<Risk | null>(null);
 
-  const canEdit = me.data?.permissions?.["risks"] === "edit";
+  const canEdit = hasAccess(me.data, "risks", "edit");
   // The Principal, or full access to this area.
   const isPrincipal = hasFullAccess(me.data, "risks");
 
@@ -380,6 +381,7 @@ function RiskDialog({
   const markReviewed = useMarkRiskReviewed();
   const [form, setForm] = useState<RiskInput>(() => (risk ? { ...risk, ref: risk.ref } : EMPTY_FORM));
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
 
   const readOnly = !canEdit;
   const level = riskLevelFor(form.likelihood, form.impact);
@@ -598,12 +600,7 @@ function RiskDialog({
                   type="button"
                   variant="outline"
                   disabled={busy}
-                  onClick={() =>
-                    markReviewed.mutate(risk.id, {
-                      onSuccess: done("Review recorded. The next review date has been set."),
-                      onError: failed("Could not record the review"),
-                    })
-                  }
+                  onClick={() => setReviewOpen(true)}
                 >
                   <CalendarClock className="size-4" /> Mark reviewed today
                 </Button>
@@ -622,6 +619,23 @@ function RiskDialog({
             </div>
           </DialogFooter>
         </form>
+        {risk && reviewOpen && (
+          <NextReviewDialog
+            title={`Record the review of ${risk.ref}`}
+            schedule={`from its review frequency (${FREQUENCY_LABELS[risk.reviewFrequency].toLowerCase()})`}
+            busy={markReviewed.isPending}
+            onClose={() => setReviewOpen(false)}
+            onConfirm={(nextReviewDate) =>
+              markReviewed.mutate(
+                { id: risk.id, nextReviewDate },
+                {
+                  onSuccess: done("Review recorded. The next review date has been set."),
+                  onError: failed("Could not record the review"),
+                },
+              )
+            }
+          />
+        )}
         {risk && deleteOpen && (
           <DeleteRiskDialog risk={risk} onCancel={() => setDeleteOpen(false)} onDeleted={onClose} />
         )}

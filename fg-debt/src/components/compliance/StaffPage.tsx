@@ -17,7 +17,7 @@ import { formatDate } from "@/components/compliance/policy-badges";
 import { AppraisalFormDialog } from "@/components/compliance/AppraisalFormDialog";
 import { errorMessage, REPORT_YEARS, StaffDialog } from "@/components/compliance/TrainingPage";
 import { ApiError } from "@/lib/api";
-import { hasFullAccess, useComplianceMe } from "@/lib/compliance-access-api";
+import { hasAccess, hasFullAccess, useComplianceMe } from "@/lib/compliance-access-api";
 import {
   downloadAppraisalForm,
   downloadCompetenceReport,
@@ -91,7 +91,7 @@ export function StaffPage({ staffId }: { staffId: string }) {
   }
 
   const s = staff.data;
-  const canEdit = me.data?.permissions?.["training"] === "edit";
+  const canEdit = hasAccess(me.data, "training", "edit");
   // The Principal, or full access to this area.
   const isPrincipal = hasFullAccess(me.data, "training");
 
@@ -279,8 +279,8 @@ export function StaffPage({ staffId }: { staffId: string }) {
               kind={section.kind}
               title={section.title}
               empty={section.empty}
-              canEdit={canEdit && (section.kind !== "appraisal" || isPrincipal)}
-              canRemove={isPrincipal}
+              canEdit={section.kind === "appraisal" ? hasAccess(me.data, "performance", "edit") : canEdit}
+              canRemove={section.kind === "appraisal" ? hasFullAccess(me.data, "performance") : isPrincipal}
             />
           ),
         )}

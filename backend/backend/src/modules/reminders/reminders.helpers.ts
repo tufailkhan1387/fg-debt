@@ -36,6 +36,15 @@ export function nextOccurrence(dueIso: string, recurrence: Exclude<Recurrence, "
   return `${end.slice(0, 8)}${String(day).padStart(2, "0")}`;
 }
 
+/**
+ * True while an item reviewed in the last DUE_SOON_DAYS days waits for its next review date: it stays off the
+ * calendar and dashboard until that date comes (the review itself is listed under Done). Items reviewed long ago
+ * still get the usual "due soon" warning.
+ */
+export function waitingForNextReview(reviewedOn: string | null, dueDate: string, today = todayIso()): boolean {
+  return Boolean(reviewedOn) && reviewedOn! >= addDays(today, -DUE_SOON_DAYS) && dueDate > today;
+}
+
 export function urgencyOf(dueDate: string, today = todayIso(), soonDays = DUE_SOON_DAYS): Urgency {
   if (dueDate < today) return "overdue";
   return dueDate <= addDays(today, soonDays) ? "due_soon" : "upcoming";

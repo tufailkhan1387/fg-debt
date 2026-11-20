@@ -29,5 +29,15 @@ export const listLogQuerySchema = z.object({
   action: z.string().trim().max(60).optional(),
 });
 
+/** Either the chosen entries or every entry before a date (YYYY-MM-DD). The phrase guards against a stray click. */
+export const deleteLogSchema = z
+  .object({
+    ids: z.array(z.string().regex(/^\d+$/)).min(1).max(1000).optional(),
+    before: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a date.").optional(),
+    confirm: z.literal("DELETE", { errorMap: () => ({ message: 'Type DELETE to confirm.' }) }),
+  })
+  .refine((v) => Boolean(v.ids) !== Boolean(v.before), { message: "Choose entries or a date, not both." });
+
+export type DeleteLogInput = z.infer<typeof deleteLogSchema>;
 export type CreateFirmUserInput = z.infer<typeof createFirmUserSchema>;
 export type UpdateFirmUserInput = z.infer<typeof updateFirmUserSchema>;

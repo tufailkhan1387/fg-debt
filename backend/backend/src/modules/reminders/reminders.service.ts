@@ -20,6 +20,7 @@ import {
   todayIso,
   toTask,
   urgencyOf,
+  waitingForNextReview,
 } from "./reminders.helpers.js";
 import {
   DIGEST_WINDOW_DAYS,
@@ -88,17 +89,20 @@ async function buildFeed(viewer: { userId: string; role: ComplianceRole; permiss
     }
   }
 
-  if (hasAccess(viewer.permissions, "policies", "view")) {
+  // Policies follow Policy Library rights, procedures Procedure Library rights.
+  const seesKind = (kind: string) => hasAccess(viewer.permissions, kind === "procedure" ? "procedures" : "policies", "view");
+  if (hasAccess(viewer.permissions, "policies", "view") || hasAccess(viewer.permissions, "procedures", "view")) {
     const policies = (
-      await query<{ id: string; title: string; owner: string; next_review_date: string; last_reviewed_at: string | null }>(
-        `SELECT id, title, owner, next_review_date::text AS next_review_date, last_reviewed_at::text AS last_reviewed_at FROM compliance_policies
+      await query<{ id: string; title: string; kind: string; owner: string; next_review_date: string; last_reviewed_at: string | null }>(
+        `SELECT id, title, kind, owner, next_review_date::text AS next_review_date, last_reviewed_at::text AS last_reviewed_at FROM compliance_policies
          WHERE NOT archived AND current_version_id IS NOT NULL AND next_review_date IS NOT NULL`,
       )
-    ).rows;
+    ).rows.filter((p) => seesKind(p.kind));
     for (const p of policies) {
       const urgency = urgencyOf(p.next_review_date);
       // Once reviewed, the next review stays off the calendar until it falls due (the review itself is under Done).
       if (p.last_reviewed_at && urgency === "upcoming") continue;
+      if (waitingForNextReview(p.last_reviewed_at?.slice(0, 10) ?? null, p.next_review_date)) continue;
       items.push({
         key: `policy:${p.id}`,
         source: "policy_review",
@@ -126,6 +130,7 @@ async function buildFeed(viewer: { userId: string; role: ComplianceRole; permiss
       const urgency = urgencyOf(r.next_review_date, todayIso(), r.review_frequency === "monthly" ? DIGEST_WINDOW_DAYS : undefined);
       // Once reviewed, the next review stays off the calendar until it falls due (the review itself is under Done).
       if (r.last_reviewed_at && urgency === "upcoming") continue;
+      if (waitingForNextReview(r.last_reviewed_at ? localDate(r.last_reviewed_at) : null, r.next_review_date)) continue;
       items.push({
         key: `risk:${r.id}`,
         source: "risk_review",
@@ -164,6 +169,7 @@ async function buildFeed(viewer: { userId: string; role: ComplianceRole; permiss
 
   if (hasAccess(viewer.permissions, "registers", "view")) {
     for (const due of await registersService.dueItems(viewer)) {
+      if (waitingForNextReview(due.reviewedOn, due.dueDate)) continue;
       items.push({
         key: `register:${due.id}`,
         source: "register_due",
@@ -254,6 +260,11 @@ async function buildFeed(viewer: { userId: string; role: ComplianceRole; permiss
   return sortItems(items);
 }
 
+/** A timestamp's calendar date in the reminder time zone. */
+function localDate(at: Date): string {
+  return localNow(at).date;
+}
+
 /** Local calendar date and hour in the reminder time zone (the firm is in the UK; servers may run in UTC). */
 function localNow(now = new Date()): { date: string; hour: number } {
   const parts = Object.fromEntries(
@@ -283,7 +294,7 @@ const ALL_EDIT = effectivePermissions("principal", []);
 function reviewActions(viewer: { permissions: PermissionMap }): string[] {
   return [
     ...(hasAccess(viewer.permissions, "risks", "view") ? ["risk.reviewed"] : []),
-    ...(hasAccess(viewer.permissions, "policies", "view") ? ["policy.reviewed"] : []),
+    ...(hasAccess(viewer.permissions, "policies", "view") || hasAccess(viewer.permissions, "procedures", "view") ? ["policy.reviewed"] : []),
   ];
 }
 
@@ -313,7 +324,8 @@ export const remindersService = {
     const items = await buildFeed(actor);
     const completed = await query<{ count: number }>(
       `SELECT ((SELECT COUNT(*) FROM compliance_tasks WHERE status = 'completed' AND completed_at >= date_trunc('month', NOW()))
-            + (SELECT COUNT(*) FROM compliance_audit_log WHERE action = ANY($1::text[]) AND created_at >= date_trunc('month', NOW())))::int AS count`,
+            + (SELECT COUNT(*) FROM compliance_audit_log l WHERE action = ANY($1::text[]) AND created_at >= date_trunc('month', NOW())
+               AND NOT EXISTS (SELECT 1 FROM compliance_done_removed r WHERE r.item_id = 'review:' || l.id)))::int AS count`,
       [reviewActions(actor)],
     );
     return {
@@ -338,8 +350,9 @@ export const remindersService = {
     ).rows;
     const reviews = (
       await query<{ id: string; action: string; entity_id: string | null; user_email: string | null; details: Record<string, unknown>; created_at: Date }>(
-        `SELECT id::text AS id, action, entity_id, user_email, details, created_at FROM compliance_audit_log
-         WHERE action = ANY($1::text[]) ORDER BY created_at DESC LIMIT 100`,
+        `SELECT id::text AS id, action, entity_id, user_email, details, created_at FROM compliance_audit_log l
+         WHERE action = ANY($1::text[]) AND NOT EXISTS (SELECT 1 FROM compliance_done_removed r WHERE r.item_id = 'review:' || l.id)
+         ORDER BY created_at DESC LIMIT 100`,
         [reviewActions(viewer)],
       )
     ).rows;
@@ -444,6 +457,32 @@ export const remindersService = {
     ).rows[0];
     await log(actor, "reminder.task_cancelled", before.title, { reason: reason || null });
     return toTask(row);
+  },
+
+  /**
+   * Deletes an item from Done. A completed or cancelled task is deleted. A review comes from the access log, which
+   * cannot change, so it is only taken off the Done list; the access log keeps it.
+   */
+  async removeDone(id: string, actor: ReminderActor): Promise<void> {
+    if (id.startsWith("review:")) {
+      const logId = id.slice("review:".length);
+      if (!/^\d+$/.test(logId)) throw new AppError("Item not found.", 404, "NOT_FOUND");
+      const review = (
+        await query<{ entity_id: string | null }>(
+          "SELECT entity_id FROM compliance_audit_log WHERE id = $1 AND action = ANY($2::text[])",
+          [logId, ["risk.reviewed", "policy.reviewed"]],
+        )
+      ).rows[0];
+      if (!review) throw new AppError("Item not found.", 404, "NOT_FOUND");
+      await query("INSERT INTO compliance_done_removed (item_id, removed_by) VALUES ($1, $2) ON CONFLICT DO NOTHING", [id, actor.email]);
+      await log(actor, "reminder.done_removed", review.entity_id ?? id, { review: true });
+      return;
+    }
+    if (!/^[0-9a-f-]{36}$/i.test(id)) throw new AppError("Item not found.", 404, "NOT_FOUND");
+    const task = await getTaskRow(id);
+    if (task.status === "open") throw new AppError("Only a completed or cancelled task can be deleted from Done.", 400, "TASK_OPEN");
+    await query("DELETE FROM compliance_tasks WHERE id = $1", [id]);
+    await log(actor, "reminder.task_deleted", task.title, { status: task.status, dueDate: task.due_date });
   },
 
   async suggestions(): Promise<Suggestion[]> {

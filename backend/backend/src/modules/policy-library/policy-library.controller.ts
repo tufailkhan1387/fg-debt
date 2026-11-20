@@ -27,7 +27,7 @@ function actorOf(req: Request): PolicyActor {
   if (!req.auth?.sub || !req.compliance) {
     throw new AppError("Please sign in to continue.", 401, "UNAUTHENTICATED");
   }
-  return { userId: req.auth.sub, email: req.auth.email, role: req.compliance.role, ip: req.ip };
+  return { userId: req.auth.sub, email: req.auth.email, role: req.compliance.role, ip: req.ip, permissions: req.compliance.permissions };
 }
 
 function idParam(value: string | string[]): string {
@@ -51,6 +51,16 @@ function handle(fn: Handler) {
       next(error);
     }
   };
+}
+
+/** Optional next review date (YYYY-MM-DD) sent with a review. */
+function reviewDateOf(body: unknown): string | undefined {
+  const value = (body as { nextReviewDate?: unknown } | undefined)?.nextReviewDate;
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    throw new AppError("Use a date like 2026-12-31.", 400, "VALIDATION_ERROR");
+  }
+  return value;
 }
 
 export const policyLibraryController = {
@@ -129,7 +139,7 @@ export const policyLibraryController = {
   }),
 
   markReviewed: handle(async (req, res) => {
-    const policy = await policyLibraryService.markReviewed(idParam(req.params.id), actorOf(req));
+    const policy = await policyLibraryService.markReviewed(idParam(req.params.id), reviewDateOf(req.body), actorOf(req));
     res.json({ success: true, data: { policy } });
   }),
 

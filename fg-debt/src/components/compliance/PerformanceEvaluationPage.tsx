@@ -7,23 +7,23 @@ import { SolicitorDataLoading } from "@/components/solicitor/SolicitorDataStates
 import { formatDate } from "@/components/compliance/policy-badges";
 import { EVALUATION_ANCHOR } from "@/components/compliance/StaffPage";
 import { ApiError } from "@/lib/api";
-import { hasFullAccess, useComplianceMe } from "@/lib/compliance-access-api";
+import { hasAccess, useComplianceMe } from "@/lib/compliance-access-api";
 import { useAppraisalFormDefinition, useTraining } from "@/lib/training-api";
 
-/** One place to find each person's performance evaluation (Master Register "Performance Evaluation" sheet). Principal only. */
+/** One place to find each person's performance evaluation (Master Register "Performance Evaluation" sheet). The Principal and anyone given access to Performance Evaluation. */
 export function PerformanceEvaluationPage() {
   const me = useComplianceMe();
   const overview = useTraining();
   const definition = useAppraisalFormDefinition();
 
   if (me.isLoading || overview.isLoading) return <SolicitorDataLoading label="Loading performance evaluations…" />;
-  const allowed = hasFullAccess(me.data, "training");
+  const allowed = hasAccess(me.data, "performance");
   if (!allowed || overview.isError || !overview.data) {
     const denied = !allowed || (overview.error instanceof ApiError && overview.error.status === 403);
     return (
       <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 text-center text-muted-foreground">
         {denied && <Lock className="size-7" />}
-        <p className="text-sm">{denied ? "Performance evaluations are visible to the Principal and anyone with full access to Staff Training." : "Could not load performance evaluations."}</p>
+        <p className="text-sm">{denied ? "Performance evaluations are visible to the Principal and anyone given access to Performance Evaluation." : "Could not load performance evaluations."}</p>
       </div>
     );
   }

@@ -3,7 +3,7 @@ import type { z, ZodTypeAny } from "zod";
 import { AppError } from "../../middleware/appError.js";
 import { accessService } from "./access.service.js";
 import { COMPLIANCE_MODULES } from "./access.types.js";
-import { createFirmUserSchema, listLogQuerySchema, updateFirmUserSchema } from "./access.validators.js";
+import { createFirmUserSchema, deleteLogSchema, listLogQuerySchema, updateFirmUserSchema } from "./access.validators.js";
 
 function parse<S extends ZodTypeAny>(schema: S, payload: unknown): z.output<S> {
   const result = schema.safeParse(payload);
@@ -94,6 +94,15 @@ export const accessController = {
       const filters = parse(listLogQuerySchema, req.query);
       const entries = await accessService.listLog(filters);
       res.json({ success: true, data: { entries } });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async deleteLog(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await accessService.deleteLog(parse(deleteLogSchema, req.body), actorOf(req));
+      res.json({ success: true, data: result });
     } catch (error) {
       next(error);
     }

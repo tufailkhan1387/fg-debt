@@ -17,7 +17,7 @@ import { SolicitorStatCard } from "@/components/solicitor/SolicitorStatCard";
 import { SolicitorDataLoading } from "@/components/solicitor/SolicitorDataStates";
 import { formatDate } from "@/components/compliance/policy-badges";
 import { ApiError } from "@/lib/api";
-import { hasFullAccess, useComplianceMe } from "@/lib/compliance-access-api";
+import { hasAccess, hasFullAccess, useComplianceMe } from "@/lib/compliance-access-api";
 import {
   downloadTrainingSummary,
   useAddRequired,
@@ -44,7 +44,7 @@ export function TrainingPage() {
   const [year, setYear] = useState(String(THIS_YEAR));
   const [downloading, setDownloading] = useState(false);
 
-  const canEdit = me.data?.permissions?.["training"] === "edit";
+  const canEdit = hasAccess(me.data, "training", "edit");
   // The Principal, or full access to this area.
   const isPrincipal = hasFullAccess(me.data, "training");
 

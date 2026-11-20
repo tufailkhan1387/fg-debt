@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import { query } from "../../db/pool.js";
+import { pool, query } from "../../db/pool.js";
 import { AppError } from "../../middleware/appError.js";
 import { csvRow } from "../../utils/csv.js";
 import type { ComplianceRole, UserRow } from "../auth/auth.types.js";
@@ -13,7 +13,7 @@ import type {
   FirmUser,
   PermissionMap,
 } from "./access.types.js";
-import type { CreateFirmUserInput, UpdateFirmUserInput } from "./access.validators.js";
+import type { CreateFirmUserInput, DeleteLogInput, UpdateFirmUserInput } from "./access.validators.js";
 
 type PermissionRow = { user_id: string; module: string; access_level: AccessLevel };
 
@@ -268,6 +268,37 @@ export const accessService = {
       details: row.details,
       ipAddress: row.ip_address,
     }));
+  },
+
+  /**
+   * Principal only (see the route). Deletes the chosen entries, or every entry before a date, then records the
+   * deletion itself as a new entry, so the log always shows that entries were removed, by whom and how many.
+   */
+  async deleteLog(input: DeleteLogInput, actor: Actor): Promise<{ deleted: number }> {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("SET LOCAL fg.access_log_delete = 'on'");
+      const result = input.ids
+        ? await client.query("DELETE FROM compliance_audit_log WHERE id::text = ANY($1::text[])", [input.ids])
+        : await client.query("DELETE FROM compliance_audit_log WHERE created_at < $1::date", [input.before]);
+      await client.query("COMMIT");
+      const deleted = result.rowCount ?? 0;
+      await recordAccessLog({
+        userId: actor.userId,
+        userEmail: actor.email,
+        action: "access_log.deleted",
+        entityType: "access_log",
+        details: input.ids ? { deleted, entries: input.ids.length } : { deleted, before: input.before },
+        ip: actor.ip,
+      });
+      return { deleted };
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
   },
 
   async exportLogCsv(): Promise<string> {

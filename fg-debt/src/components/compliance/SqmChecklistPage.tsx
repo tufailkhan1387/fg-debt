@@ -21,7 +21,7 @@ import { SolicitorDataLoading } from "@/components/solicitor/SolicitorDataStates
 import { GapChip, ReadinessBar, SqmStatusBadge } from "@/components/compliance/sqm-badges";
 import { formatDate } from "@/components/compliance/policy-badges";
 import { ApiError } from "@/lib/api";
-import { useComplianceMe } from "@/lib/compliance-access-api";
+import { hasAccess, useComplianceMe } from "@/lib/compliance-access-api";
 import {
   downloadSqmReport,
   downloadSqmTemplate,
@@ -70,7 +70,7 @@ export function SqmChecklistPage() {
   const [dialog, setDialog] = useState<{ type: "import" } | { type: "add" } | { type: "rename"; section: SectionSummary } | null>(null);
   const [busy, setBusy] = useState<"template" | "report" | null>(null);
 
-  const canEdit = me.data?.permissions?.["sqm"] === "edit";
+  const canEdit = hasAccess(me.data, "sqm", "edit");
 
   const requirements = useMemo(() => {
     const gap = GAP_FILTERS.find((f) => f.value === gapFilter)?.match ?? (() => true);

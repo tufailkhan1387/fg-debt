@@ -163,6 +163,13 @@ export function useCancelTask() {
   );
 }
 
+/** Deletes a completed or cancelled task, or takes a review off Done (the access log keeps it). */
+export function useRemoveDone() {
+  return useReminderMutation((id: string) =>
+    apiRequest<{ removed: boolean }>(`${BASE}/done/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  );
+}
+
 export function useAddSuggestions() {
   return useReminderMutation((keys: string[]) =>
     apiRequest<{ added: number; skipped: number }>(`${BASE}/suggestions`, { method: "POST", body: { keys } }),

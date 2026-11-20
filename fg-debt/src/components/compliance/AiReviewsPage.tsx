@@ -20,7 +20,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { SolicitorDataLoading } from "@/components/solicitor/SolicitorDataStates";
 import { ApiError } from "@/lib/api";
-import { useComplianceMe } from "@/lib/compliance-access-api";
+import { hasAccess, useComplianceMe } from "@/lib/compliance-access-api";
 import { useAiReviews, useAiStatus, useCreateReview, type AiStatus, type ReviewStatus } from "@/lib/ai-review-api";
 import { usePolicies } from "@/lib/policy-library-api";
 import { useSqmOverview } from "@/lib/sqm-api";
@@ -79,7 +79,7 @@ export function AiReviewsPage() {
     );
   }
 
-  const canEdit = me.data?.permissions?.["documents"] === "edit";
+  const canEdit = hasAccess(me.data, "documents", "edit");
   const ai = status.data!;
   const list = reviews.data ?? [];
 

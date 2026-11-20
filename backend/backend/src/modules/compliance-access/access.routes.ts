@@ -13,4 +13,6 @@ complianceAccessRouter.patch("/users/:id", authenticate, requireCompliance("user
 complianceAccessRouter.delete("/users/:id", authenticate, requireCompliance("users", "edit"), accessController.deleteUser);
 complianceAccessRouter.post("/users/:id/mfa/reset", authenticate, requireCompliance("users", "edit"), accessController.resetUserMfa);
 complianceAccessRouter.get("/log", authenticate, requireCompliance("access_log"), accessController.listLog);
+// Deleting entries is for the Principal alone: full access to the Access Log does not allow it.
+complianceAccessRouter.post("/log/delete", authenticate, requireCompliance("principal"), accessController.deleteLog);
 complianceAccessRouter.get("/log/export", authenticate, requireCompliance("access_log"), accessController.exportLog);

@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { SolicitorDataLoading } from "@/components/solicitor/SolicitorDataStates";
 import { formatDate } from "@/components/compliance/policy-badges";
 import { ApiError } from "@/lib/api";
-import { useComplianceMe } from "@/lib/compliance-access-api";
+import { hasAccess, useComplianceMe } from "@/lib/compliance-access-api";
 import {
   ANSWER_LABELS,
   downloadReviewReport,
@@ -67,7 +67,7 @@ export function FileReviewPage({ reviewId }: { reviewId: string }) {
   }
 
   const data = review.data;
-  const canEdit = me.data?.permissions?.["file_reviews"] === "edit";
+  const canEdit = hasAccess(me.data, "file_reviews", "edit");
   const completed = data.status === "completed";
 
   async function download() {

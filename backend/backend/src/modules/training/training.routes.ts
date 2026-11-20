@@ -5,9 +5,8 @@ import { authenticate } from "../../middleware/authenticate.js";
 import { requireCompliance } from "../../middleware/requireCompliance.js";
 import { evidenceUploadMiddleware } from "../../middleware/upload.js";
 import { safeFileName } from "../policy-library/policy-library.helpers.js";
-import type { RegisterActor } from "../registers/registers.service.js";
 import { APPRAISAL_CATEGORIES, APPRAISAL_RATINGS, SCORES_NEEDING_COMMENT } from "./appraisal-form.js";
-import { trainingService } from "./training.service.js";
+import { trainingService, type TrainingActor } from "./training.service.js";
 
 // Record forms arrive as multipart (with an optional certificate), so blanks and "true"/"false" come as text.
 const optionalDate = z.preprocess(
@@ -84,9 +83,9 @@ function parse<T extends z.ZodTypeAny>(schema: T, payload: unknown): z.output<T>
   return result.data;
 }
 
-function actorOf(req: Request): RegisterActor {
+function actorOf(req: Request): TrainingActor {
   if (!req.auth?.sub || !req.compliance) throw new AppError("Please sign in to continue.", 401, "UNAUTHENTICATED");
-  return { userId: req.auth.sub, email: req.auth.email, role: req.compliance.role, ip: req.ip };
+  return { userId: req.auth.sub, email: req.auth.email, role: req.compliance.role, ip: req.ip, permissions: req.compliance.permissions };
 }
 
 function param(value: string | string[]): string {
@@ -119,8 +118,12 @@ const canView = requireCompliance("training", "view");
 const canEdit = requireCompliance("training", "edit");
 // The Principal, or anyone given full access to this area.
 const principal = requireCompliance("training", "full");
+// Pages and records that Performance Evaluation access also reaches. The service decides per record kind:
+// appraisals follow Performance Evaluation rights, everything else Staff Training rights.
+const viewEither = requireCompliance("training", "view", "performance");
+const editEither = requireCompliance("training", "edit", "performance");
 
-trainingRouter.get("/", authenticate, canView, handle(async (req, res) => {
+trainingRouter.get("/", authenticate, viewEither, handle(async (req, res) => {
   res.json({ success: true, data: await trainingService.overview(actorOf(req)) });
 }));
 
@@ -134,7 +137,7 @@ trainingRouter.post("/staff", authenticate, canEdit, handle(async (req, res) => 
   res.status(201).json({ success: true, data: { staff: await trainingService.createStaff(parse(staffSchema, req.body), actorOf(req)) } });
 }));
 
-trainingRouter.get("/staff/:id", authenticate, canView, handle(async (req, res) => {
+trainingRouter.get("/staff/:id", authenticate, viewEither, handle(async (req, res) => {
   res.json({ success: true, data: { staff: await trainingService.get(param(req.params.id), actorOf(req)) } });
 }));
 
@@ -148,37 +151,38 @@ trainingRouter.patch("/staff/:id", authenticate, canEdit, handle(async (req, res
   res.json({ success: true, data: { staff: await trainingService.updateStaff(param(req.params.id), parse(staffUpdateSchema, req.body), actorOf(req)) } });
 }));
 
-trainingRouter.post("/staff/:id/records", authenticate, canEdit, evidenceUploadMiddleware.single("file"), handle(async (req, res) => {
+trainingRouter.post("/staff/:id/records", authenticate, editEither, evidenceUploadMiddleware.single("file"), handle(async (req, res) => {
   const staff = await trainingService.addRecord(param(req.params.id), parse(recordSchema, req.body), req.file, actorOf(req));
   res.status(201).json({ success: true, data: { staff } });
 }));
 
-trainingRouter.patch("/records/:id", authenticate, canEdit, handle(async (req, res) => {
+trainingRouter.patch("/records/:id", authenticate, editEither, handle(async (req, res) => {
   res.json({ success: true, data: { staff: await trainingService.updateRecord(param(req.params.id), parse(recordUpdateSchema, req.body), actorOf(req)) } });
 }));
 
-trainingRouter.get("/records/:id/file", authenticate, canView, handle(async (req, res) => {
+trainingRouter.get("/records/:id/file", authenticate, viewEither, handle(async (req, res) => {
   const file = await trainingService.downloadFile(param(req.params.id), actorOf(req));
   sendFile(res, file.buffer, file.fileName, file.mimeType);
 }));
 
 // The firm's appraisal form wording, for the form on screen.
-trainingRouter.get("/appraisal-form", authenticate, canView, handle(async (_req, res) => {
+trainingRouter.get("/appraisal-form", authenticate, viewEither, handle(async (_req, res) => {
   res.json({ success: true, data: { categories: APPRAISAL_CATEGORIES, ratings: APPRAISAL_RATINGS, scoresNeedingComment: SCORES_NEEDING_COMMENT } });
 }));
 
-// Appraisals are the Principal's alone.
-trainingRouter.put("/records/:id/form", authenticate, principal, handle(async (req, res) => {
+// Appraisals: the Principal, or anyone given access to Performance Evaluation (the service checks the level).
+trainingRouter.put("/records/:id/form", authenticate, editEither, handle(async (req, res) => {
   const form = parse(appraisalFormSchema, req.body) as Parameters<typeof trainingService.saveAppraisalForm>[1];
   res.json({ success: true, data: { staff: await trainingService.saveAppraisalForm(param(req.params.id), form, actorOf(req)) } });
 }));
 
-trainingRouter.get("/records/:id/appraisal-report", authenticate, principal, handle(async (req, res) => {
+trainingRouter.get("/records/:id/appraisal-report", authenticate, viewEither, handle(async (req, res) => {
   const file = await trainingService.appraisalReport(param(req.params.id), actorOf(req));
   sendFile(res, file.buffer, file.fileName, DOCX);
 }));
 
-trainingRouter.delete("/records/:id", authenticate, principal, handle(async (req, res) => {
+// Deleting needs full access: to Staff Training for training records, to Performance Evaluation for appraisals.
+trainingRouter.delete("/records/:id", authenticate, viewEither, handle(async (req, res) => {
   res.json({ success: true, data: { staff: await trainingService.removeRecord(param(req.params.id), actorOf(req)) } });
 }));
 

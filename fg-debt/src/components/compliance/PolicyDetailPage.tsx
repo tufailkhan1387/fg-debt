@@ -16,6 +16,7 @@ import {
   Trash2,
   XCircle,
 } from "lucide-react";
+import { NextReviewDialog } from "@/components/compliance/NextReviewDialog";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -45,7 +46,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { SolicitorDataLoading } from "@/components/solicitor/SolicitorDataStates";
 import { formatDate, ReviewBadge, VersionBadge } from "@/components/compliance/policy-badges";
 import { ApiError } from "@/lib/api";
-import { hasFullAccess, useComplianceMe } from "@/lib/compliance-access-api";
+import { hasAccess, hasFullAccess, useComplianceMe } from "@/lib/compliance-access-api";
 import {
   downloadPolicyVersion,
   POLICY_FREQUENCY_LABELS,
@@ -57,6 +58,7 @@ import {
   usePolicies,
   usePolicy,
   usePolicyAction,
+  useReviewPolicy,
   usePolicyText,
   useRejectVersion,
   useSavePolicyText,
@@ -86,10 +88,10 @@ async function download(version: PolicyVersion) {
 export function PolicyDetailPage({ policyId }: { policyId: string }) {
   const me = useComplianceMe();
   const { data: policy, isLoading, isError, error } = usePolicy(policyId);
-  const [dialog, setDialog] = useState<"version" | "edit" | "wording" | "reject" | "delete" | null>(null);
+  const [dialog, setDialog] = useState<"version" | "edit" | "wording" | "reject" | "delete" | "review" | null>(null);
 
   const acknowledge = usePolicyAction("acknowledge");
-  const review = usePolicyAction("review");
+  const review = useReviewPolicy();
   const archive = useArchivePolicy();
 
   if (me.isLoading || isLoading) return <SolicitorDataLoading label="Loading policy…" />;
@@ -103,9 +105,11 @@ export function PolicyDetailPage({ policyId }: { policyId: string }) {
     );
   }
 
-  const canEdit = me.data?.permissions?.["policies"] === "edit";
+  // Policies follow Policy Library rights, procedures Procedure Library rights.
+  const area = policy.kind === "procedure" ? "procedures" : "policies";
+  const canEdit = hasAccess(me.data, area, "edit");
   // The Principal, or full access to this area.
-  const isPrincipal = hasFullAccess(me.data, "policies");
+  const isPrincipal = hasFullAccess(me.data, area);
   const busy = acknowledge.isPending || review.isPending || archive.isPending;
 
   return (
@@ -155,15 +159,30 @@ export function PolicyDetailPage({ policyId }: { policyId: string }) {
             <Button
               variant="outline"
               disabled={busy}
-              onClick={() =>
-                review.mutate(policy.id, {
-                  onSuccess: () => toast.success("Review recorded. The next review date has moved on."),
-                  onError: (e) => toast.error("Could not record the review", { description: errorMessage(e) }),
-                })
-              }
+              onClick={() => setDialog("review")}
             >
               <CalendarCheck className="size-4" /> Reviewed — no changes
             </Button>
+          )}
+          {dialog === "review" && (
+            <NextReviewDialog
+              title={`Record the review of ${policy.title}`}
+              schedule={`from its review frequency (${POLICY_FREQUENCY_LABELS[policy.reviewFrequency].toLowerCase()})`}
+              busy={review.isPending}
+              onClose={() => setDialog(null)}
+              onConfirm={(nextReviewDate) =>
+                review.mutate(
+                  { id: policy.id, nextReviewDate },
+                  {
+                    onSuccess: () => {
+                      toast.success("Review recorded. The next review date has moved on.");
+                      setDialog(null);
+                    },
+                    onError: (e) => toast.error("Could not record the review", { description: errorMessage(e) }),
+                  },
+                )
+              }
+            />
           )}
           {isPrincipal && (
             <Button

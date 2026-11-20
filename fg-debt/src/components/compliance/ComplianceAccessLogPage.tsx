@@ -1,13 +1,31 @@
 import { useState } from "react";
-import { Download, Loader2, Lock } from "lucide-react";
+import { Download, Loader2, Lock, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SolicitorDataLoading } from "@/components/solicitor/SolicitorDataStates";
 import { PrincipalGate } from "@/components/compliance/PrincipalGate";
-import { exportAccessLogCsv, useAccessLog, type AccessLogEntry } from "@/lib/compliance-access-api";
+import { ApiError } from "@/lib/api";
+import {
+  exportAccessLogCsv,
+  useAccessLog,
+  useComplianceMe,
+  useDeleteAccessLog,
+  type AccessLogEntry,
+} from "@/lib/compliance-access-api";
 
 const FILTERS = [
   { value: "all", label: "All", prefix: undefined },
@@ -63,6 +81,8 @@ export const ACTION_LABELS: Record<string, string> = {
   "reminder.task_updated": "Calendar task edited",
   "reminder.task_completed": "Calendar task done",
   "reminder.task_cancelled": "Calendar task cancelled",
+  "reminder.task_deleted": "Calendar task deleted from Done",
+  "reminder.done_removed": "Review removed from Done",
   "reminder.suggestions_added": "Standard activities added",
   "reminder.digest_sent": "Reminder email",
   "sqm.imported": "SQM requirements imported",
@@ -132,6 +152,7 @@ export const ACTION_LABELS: Record<string, string> = {
   "data.exported": "Full data export downloaded",
   "data.deleted": "All compliance data deleted",
   "data.delete_refused": "Data deletion refused",
+  "access_log.deleted": "Access log entries deleted",
   "system.test_email": "Test email sent",
   "assistant.asked": "AI assistant question",
   "assistant.failed": "AI assistant question failed",
@@ -233,6 +254,12 @@ function describe(entry: AccessLogEntry): string {
   if (entry.action === "reminder.digest_sent") {
     return `${String(entry.details["itemCount"] ?? 0)} items · ${String(entry.details["status"] ?? "")}`;
   }
+  if (entry.action === "access_log.deleted") {
+    const before = entry.details["before"]
+      ? ` older than ${new Date(String(entry.details["before"])).toLocaleDateString("en-GB")}`
+      : "";
+    return `${String(entry.details["deleted"] ?? 0)} entries deleted${before}`;
+  }
   if (entry.action === "access.user_created") {
     return `Role: ${String(entry.details["complianceRole"] ?? "")}`;
   }
@@ -252,6 +279,10 @@ function AccessLog() {
   const prefix = FILTERS.find((f) => f.value === filter)?.prefix;
   const { data, isLoading, isError } = useAccessLog(true, prefix);
   const [exporting, setExporting] = useState(false);
+  // Deleting entries is for the Principal alone (full access to the Access Log does not allow it).
+  const canDelete = useComplianceMe().data?.role === "principal";
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState<"selected" | "older" | null>(null);
 
   async function handleExport() {
     setExporting(true);
@@ -266,6 +297,17 @@ function AccessLog() {
   }
 
   const entries = data?.entries ?? [];
+  const shownSelected = entries.filter((e) => selected.has(e.id)).map((e) => e.id);
+  const allSelected = entries.length > 0 && shownSelected.length === entries.length;
+
+  function toggle(id: string, on: boolean) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
 
   return (
     <div className="space-y-6 pb-12">
@@ -274,18 +316,41 @@ function AccessLog() {
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-display font-bold tracking-tight text-foreground sm:text-3xl">Access Log</h1>
             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-              <Lock className="size-3" /> Cannot be edited or deleted
+              <Lock className="size-3" /> Cannot be edited · only the Principal can delete
             </span>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Who signed in, what they opened and what access was changed in the compliance system.
+            Who signed in, what they opened and what access was changed in the compliance system. Deleting entries is
+            itself recorded here.
           </p>
         </div>
-        <Button variant="outline" disabled={exporting} onClick={handleExport}>
-          {exporting ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
-          Export CSV
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {canDelete && (
+            <>
+              <Button variant="outline" disabled={shownSelected.length === 0} onClick={() => setDeleting("selected")}>
+                <Trash2 className="size-4" /> Delete selected{shownSelected.length ? ` (${shownSelected.length})` : ""}
+              </Button>
+              <Button variant="outline" onClick={() => setDeleting("older")}>
+                <Trash2 className="size-4" /> Delete older entries
+              </Button>
+            </>
+          )}
+          <Button variant="outline" disabled={exporting} onClick={handleExport}>
+            {exporting ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+            Export CSV
+          </Button>
+        </div>
       </div>
+
+      {deleting && (
+        <DeleteEntriesDialog
+          ids={deleting === "selected" ? shownSelected : null}
+          onClose={(done) => {
+            setDeleting(null);
+            if (done) setSelected(new Set());
+          }}
+        />
+      )}
 
       <Tabs value={filter} onValueChange={(value) => setFilter(value as typeof filter)}>
         <TabsList className="h-auto flex-wrap">
@@ -307,6 +372,15 @@ function AccessLog() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  {canDelete && (
+                    <TableHead className="w-8">
+                      <Checkbox
+                        aria-label="Select all shown entries"
+                        checked={allSelected}
+                        onCheckedChange={(on) => setSelected(on ? new Set(entries.map((e) => e.id)) : new Set())}
+                      />
+                    </TableHead>
+                  )}
                   <TableHead className="text-xs font-semibold">When</TableHead>
                   <TableHead className="text-xs font-semibold">User</TableHead>
                   <TableHead className="text-xs font-semibold">Action</TableHead>
@@ -318,13 +392,22 @@ function AccessLog() {
               <TableBody>
                 {entries.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={canDelete ? 7 : 6} className="py-10 text-center text-sm text-muted-foreground">
                       No entries yet.
                     </TableCell>
                   </TableRow>
                 ) : (
                   entries.map((entry) => (
                     <TableRow key={entry.id} className="text-xs">
+                      {canDelete && (
+                        <TableCell>
+                          <Checkbox
+                            aria-label="Select entry"
+                            checked={selected.has(entry.id)}
+                            onCheckedChange={(on) => toggle(entry.id, on === true)}
+                          />
+                        </TableCell>
+                      )}
                       <TableCell className="whitespace-nowrap font-mono text-muted-foreground">
                         {new Date(entry.createdAt).toLocaleString("en-GB")}
                       </TableCell>
@@ -344,5 +427,61 @@ function AccessLog() {
         </Card>
       )}
     </div>
+  );
+}
+
+function DeleteEntriesDialog({ ids, onClose }: { ids: string[] | null; onClose: (done: boolean) => void }) {
+  const remove = useDeleteAccessLog();
+  const [before, setBefore] = useState("");
+  const [phrase, setPhrase] = useState("");
+  const ready = phrase === "DELETE" && (ids ? ids.length > 0 : Boolean(before));
+
+  function submit() {
+    remove.mutate(ids ? { ids } : { before }, {
+      onSuccess: (result) => {
+        toast.success(`${result.deleted} ${result.deleted === 1 ? "entry" : "entries"} deleted.`);
+        onClose(true);
+      },
+      onError: (error) =>
+        toast.error("Could not delete the entries", {
+          description: error instanceof ApiError ? error.message : "Please try again.",
+        }),
+    });
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose(false)}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            {ids ? `Delete ${ids.length} selected ${ids.length === 1 ? "entry" : "entries"}?` : "Delete older entries?"}
+          </DialogTitle>
+          <DialogDescription>
+            Deleted entries cannot be brought back, except from a backup taken before. A new entry records that you
+            deleted them and how many. Consider exporting the CSV first.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          {!ids && (
+            <div className="space-y-1.5">
+              <Label htmlFor="log-before">Delete every entry before</Label>
+              <Input id="log-before" type="date" value={before} onChange={(e) => setBefore(e.target.value)} />
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <Label htmlFor="log-confirm">Type DELETE to confirm</Label>
+            <Input id="log-confirm" value={phrase} onChange={(e) => setPhrase(e.target.value)} autoComplete="off" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onClose(false)}>
+            Cancel
+          </Button>
+          <Button variant="destructive" disabled={!ready || remove.isPending} onClick={submit}>
+            {remove.isPending && <Loader2 className="size-4 animate-spin" />} Delete entries
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

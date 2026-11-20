@@ -16,7 +16,7 @@ import { SolicitorDataLoading } from "@/components/solicitor/SolicitorDataStates
 import { formatDate } from "@/components/compliance/policy-badges";
 import { ApiError } from "@/lib/api";
 import { getCurrentUser } from "@/lib/auth";
-import { hasFullAccess, useComplianceMe } from "@/lib/compliance-access-api";
+import { hasAccess, hasFullAccess, useComplianceMe } from "@/lib/compliance-access-api";
 import {
   useAddQuestions,
   useFileReviews,
@@ -38,7 +38,7 @@ export function FileReviewsPage() {
   const [tab, setTab] = useState("reviews");
   const [starting, setStarting] = useState(false);
 
-  const canEdit = me.data?.permissions?.["file_reviews"] === "edit";
+  const canEdit = hasAccess(me.data, "file_reviews", "edit");
   // The Principal, or full access to this area.
   const isPrincipal = hasFullAccess(me.data, "file_reviews");
 

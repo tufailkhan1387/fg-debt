@@ -195,14 +195,20 @@ export const riskRegisterService = {
     await log(actor, "risk.deleted", risk.ref, { risk });
   },
 
-  /** Records that the risk was reviewed today and schedules the next review from its frequency. */
-  async markReviewed(id: string, actor: RiskActor): Promise<Risk> {
+  /**
+   * Records that the risk was reviewed today. The next review is the date chosen (for example a follow-up if the
+   * issue is not resolved by then), or else follows the risk's review frequency.
+   */
+  async markReviewed(id: string, nextReview: string | undefined, actor: RiskActor): Promise<Risk> {
     const before = toRisk(await getRow(id));
     const now = new Date();
+    if (nextReview && nextReview <= now.toISOString().slice(0, 10)) {
+      throw new AppError("Choose a next review date after today.", 400, "VALIDATION_ERROR");
+    }
     const result = await query<RiskRow>(
       `UPDATE compliance_risks SET last_reviewed_at = $2, next_review_date = $3, updated_by = $4, updated_at = NOW()
        WHERE id = $1 RETURNING ${COLUMNS}`,
-      [id, now, nextReviewDate(now, before.reviewFrequency), actor.email],
+      [id, now, nextReview ?? nextReviewDate(now, before.reviewFrequency), actor.email],
     );
     const risk = toRisk(result.rows[0]);
     await log(actor, "risk.reviewed", risk.ref, { wasDue: before.nextReviewDate, nextReviewDate: risk.nextReviewDate });

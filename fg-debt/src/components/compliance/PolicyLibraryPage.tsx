@@ -23,7 +23,7 @@ import { SolicitorStatCard } from "@/components/solicitor/SolicitorStatCard";
 import { SolicitorDataLoading } from "@/components/solicitor/SolicitorDataStates";
 import { AckBadge, formatDate, ReviewBadge } from "@/components/compliance/policy-badges";
 import { ApiError } from "@/lib/api";
-import { hasFullAccess, useComplianceMe } from "@/lib/compliance-access-api";
+import { hasAccess, hasFullAccess, useComplianceMe } from "@/lib/compliance-access-api";
 import {
   POLICY_FREQUENCY_LABELS,
   useCreatePolicy,
@@ -60,9 +60,11 @@ export function PolicyLibraryPage({ kind = "policy" }: { kind?: PolicyKind }) {
   const [addOpen, setAddOpen] = useState(false);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
 
-  const canEdit = me.data?.permissions?.["policies"] === "edit";
+  // Policies follow Policy Library rights, procedures Procedure Library rights.
+  const area = kind === "procedure" ? "procedures" : "policies";
+  const canEdit = hasAccess(me.data, area, "edit");
   // The Principal, or full access to this area.
-  const isPrincipal = hasFullAccess(me.data, "policies");
+  const isPrincipal = hasFullAccess(me.data, area);
 
   const policies = useMemo(() => {
     const match = FILTERS.find((f) => f.value === filter)?.match ?? (() => true);

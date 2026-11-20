@@ -139,6 +139,16 @@ export function useAccessLog(enabled = true, action?: string) {
   });
 }
 
+/** Principal only: the chosen entries, or every entry before a date. The deletion is itself logged. */
+export function useDeleteAccessLog() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { ids: string[] } | { before: string }) =>
+      apiRequest<{ deleted: number }>(`${BASE}/log/delete`, { method: "POST", body: { ...payload, confirm: "DELETE" } }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["compliance", "access", "log"] }),
+  });
+}
+
 export function exportAccessLogCsv() {
   return downloadCsvExport(`${BASE}/log/export`, "compliance-access-log.csv");
 }
