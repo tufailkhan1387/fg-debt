@@ -367,6 +367,13 @@ function AccessLog() {
       ) : isError ? (
         <p className="py-12 text-center text-sm text-muted-foreground">Could not load the access log.</p>
       ) : (
+        <>
+        {/* Only the newest entries are listed, so after a delete older ones move up; the total shows the delete took effect. */}
+        <p className="text-sm text-muted-foreground">
+          {data && data.total > entries.length
+            ? `Showing the newest ${entries.length.toLocaleString("en-GB")} of ${data.total.toLocaleString("en-GB")} entries. When shown entries are deleted, older ones move up into the list.`
+            : `${entries.length.toLocaleString("en-GB")} ${entries.length === 1 ? "entry" : "entries"}.`}
+        </p>
         <Card className="surface-card">
           <CardContent className="overflow-x-auto p-0">
             <Table>
@@ -425,6 +432,7 @@ function AccessLog() {
             </Table>
           </CardContent>
         </Card>
+        </>
       )}
     </div>
   );
@@ -439,7 +447,10 @@ function DeleteEntriesDialog({ ids, onClose }: { ids: string[] | null; onClose: 
   function submit() {
     remove.mutate(ids ? { ids } : { before }, {
       onSuccess: (result) => {
-        toast.success(`${result.deleted} ${result.deleted === 1 ? "entry" : "entries"} deleted.`);
+        toast.success(
+          `${result.deleted} ${result.deleted === 1 ? "entry" : "entries"} deleted.`,
+          ids ? { description: "Older entries have moved up into the list." } : {},
+        );
         onClose(true);
       },
       onError: (error) =>

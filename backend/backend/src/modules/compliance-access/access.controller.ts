@@ -92,8 +92,8 @@ export const accessController = {
   async listLog(req: Request, res: Response, next: NextFunction) {
     try {
       const filters = parse(listLogQuerySchema, req.query);
-      const entries = await accessService.listLog(filters);
-      res.json({ success: true, data: { entries } });
+      const [entries, total] = await Promise.all([accessService.listLog(filters), accessService.countLog(filters.action)]);
+      res.json({ success: true, data: { entries, total } });
     } catch (error) {
       next(error);
     }

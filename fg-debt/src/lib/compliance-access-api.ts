@@ -134,7 +134,7 @@ export function useAccessLog(enabled = true, action?: string) {
   if (action) params.set("action", action);
   return useQuery({
     queryKey: ["compliance", "access", "log", action ?? "all"],
-    queryFn: () => apiRequest<{ entries: AccessLogEntry[] }>(`${BASE}/log?${params.toString()}`),
+    queryFn: () => apiRequest<{ entries: AccessLogEntry[]; total: number }>(`${BASE}/log?${params.toString()}`),
     enabled,
   });
 }

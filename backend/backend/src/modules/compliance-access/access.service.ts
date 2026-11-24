@@ -235,6 +235,14 @@ export const accessService = {
     return toFirmUser(await getFirmUserRow(userId), await permissionRowsFor([userId]));
   },
 
+  /** Number of entries in the log (or of one kind), so the page can say how many exist beyond those shown. */
+  async countLog(action?: string): Promise<number> {
+    const result = action
+      ? await query<{ n: number }>("SELECT COUNT(*)::int AS n FROM compliance_audit_log WHERE action LIKE $1", [`${action}%`])
+      : await query<{ n: number }>("SELECT COUNT(*)::int AS n FROM compliance_audit_log");
+    return result.rows[0]?.n ?? 0;
+  },
+
   async listLog(filters: { limit: number; action?: string }): Promise<AccessLogEntry[]> {
     const params: unknown[] = [filters.limit];
     let where = "";
