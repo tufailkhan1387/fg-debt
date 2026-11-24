@@ -145,6 +145,20 @@ export function firstDueDate(template: SuggestionTemplate, today = todayIso()): 
   return thisYear >= today ? thisYear : lastDayOfMonth(year + 1, target);
 }
 
+/**
+ * Last day of the period in which an activity of this frequency counts as "due now" on the dashboard:
+ * this month, this quarter or this half-year. Annual activities show from the month before their due month,
+ * so there is a month's notice (December's annual reviews appear in November).
+ */
+export function activityWindowEnd(recurrence: Exclude<Recurrence, "none">, today = todayIso()): string {
+  const year = Number(today.slice(0, 4));
+  const month = Number(today.slice(5, 7)) - 1;
+  if (recurrence === "monthly") return lastDayOfMonth(year, month);
+  if (recurrence === "quarterly") return lastDayOfMonth(year, Math.floor(month / 3) * 3 + 2);
+  if (recurrence === "six_monthly") return lastDayOfMonth(year, Math.floor(month / 6) * 6 + 5);
+  return lastDayOfMonth(year, month + 1);
+}
+
 export function suggestionKey(title: string): string {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }

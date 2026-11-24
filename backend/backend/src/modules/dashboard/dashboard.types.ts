@@ -1,5 +1,14 @@
 import type { ComplianceRole } from "../auth/auth.types.js";
-import type { ReminderItem } from "../reminders/reminders.types.js";
+import type { Recurrence, ReminderItem } from "../reminders/reminders.types.js";
+
+/** Recurring calendar activities of one frequency that are overdue or due in the current period. */
+export interface DashboardActivityGroup {
+  recurrence: Exclude<Recurrence, "none">;
+  /** End of the period shown: this month, this quarter, this half-year, or next month for annual activities. */
+  dueBy: string;
+  overdue: number;
+  items: ReminderItem[];
+}
 
 export interface DashboardRisk {
   id: string;
@@ -46,6 +55,8 @@ export interface Dashboard {
     approvals: number;
     items: ReminderItem[];
   };
+  /** Monthly, quarterly and annual calendar activities due now (null without calendar access). */
+  calendarActivities: DashboardActivityGroup[] | null;
   /** null when the user has no access to that area. */
   risks: {
     total: number;

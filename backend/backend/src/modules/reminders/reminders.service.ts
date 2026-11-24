@@ -514,6 +514,47 @@ export const remindersService = {
     return { added: toAdd.length, skipped: keys.length - toAdd.length };
   },
 
+  /**
+   * Puts every activity from the firm's Compliance Activities Calendar sheet on the calendar, so the monthly,
+   * quarterly and annual activities are listed without anyone having to add them. Each activity is added once
+   * only (recorded in compliance_calendar_activities_added); one already on the calendar under the same title,
+   * open or closed, is not added again, and one later edited or cancelled stays that way.
+   */
+  async addCalendarActivities(): Promise<string[]> {
+    const client = await pool.connect();
+    const added: string[] = [];
+    try {
+      await client.query("BEGIN");
+      // Several API processes may start at once; only one adds the activities.
+      await client.query("LOCK TABLE compliance_calendar_activities_added IN EXCLUSIVE MODE");
+      const done = new Set((await client.query<{ key: string }>("SELECT key FROM compliance_calendar_activities_added")).rows.map((r) => r.key));
+      const titles = new Set((await client.query<{ title: string }>("SELECT DISTINCT LOWER(title) AS title FROM compliance_tasks")).rows.map((r) => r.title));
+      for (const template of SUGGESTED_ACTIVITIES) {
+        const key = suggestionKey(template.title);
+        if (done.has(key)) continue;
+        if (!titles.has(template.title.toLowerCase())) {
+          await client.query(
+            `INSERT INTO compliance_tasks (title, area, due_date, recurrence, created_by, updated_by)
+             VALUES ($1, $2, $3, $4, 'system', 'system')`,
+            [template.title, template.area, firstDueDate(template), template.recurrence],
+          );
+          added.push(template.title);
+        }
+        await client.query("INSERT INTO compliance_calendar_activities_added (key) VALUES ($1) ON CONFLICT DO NOTHING", [key]);
+      }
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+    if (added.length) {
+      await log({ userId: null, email: "system" }, "reminder.calendar_activities_added", "Compliance calendar", { added });
+    }
+    return added;
+  },
+
   async digestStatus(actor: ReminderActor): Promise<DigestStatus> {
     const last = (
       await query<{ digest_date: string; status: string; item_count: number; error: string | null }>(

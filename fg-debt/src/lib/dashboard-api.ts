@@ -1,7 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api";
 import type { ComplianceRole } from "@/lib/auth";
-import type { ReminderItem } from "@/lib/reminders-api";
+import type { Recurrence, ReminderItem } from "@/lib/reminders-api";
+
+export interface DashboardActivityGroup {
+  recurrence: Exclude<Recurrence, "none">;
+  /** End of the period shown: this month, this quarter, this half-year, or next month for annual activities. */
+  dueBy: string;
+  overdue: number;
+  items: ReminderItem[];
+}
 
 type Level = "low" | "medium" | "high";
 
@@ -43,6 +51,8 @@ export interface Dashboard {
   generatedAt: string;
   role: ComplianceRole;
   deadlines: { overdue: number; dueSoon: number; approvals: number; items: ReminderItem[] };
+  /** Monthly, quarterly and annual calendar activities overdue or due in the current period (null without calendar access). */
+  calendarActivities: DashboardActivityGroup[] | null;
   risks: {
     total: number;
     open: number;

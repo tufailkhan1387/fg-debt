@@ -12,6 +12,7 @@ import {
   GraduationCap,
   KeyRound,
   Lightbulb,
+  ListChecks,
   Lock,
   ShieldAlert,
   ShieldCheck,
@@ -33,7 +34,14 @@ const LEVEL_STYLES = {
   medium: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
 } as const;
 
-const PILL = "inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-[0.7rem] font-semibold";
+const ACTIVITY_HEADINGS = {
+  monthly: "Monthly activities",
+  quarterly: "Quarterly activities",
+  six_monthly: "Six-monthly activities",
+  annual: "Annual activities",
+} as const;
+
+const PILL ="inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-[0.7rem] font-semibold";
 
 /** How many deadlines and actions the dashboard lists before pointing to the full page. */
 const LIST_LIMIT = 6;
@@ -299,6 +307,40 @@ export function ComplianceDashboardPage() {
           )}
         </Panel>
       </div>
+
+      {data.calendarActivities && (
+        <Panel title="Compliance activities due" icon={ListChecks} link="/solicitor/fg-compliance/calendar" linkText="Open calendar">
+          <div className="grid gap-4 md:grid-cols-3">
+            {data.calendarActivities.map((group) => (
+              <section key={group.recurrence} className="min-w-0">
+                <h3 className="flex items-center justify-between gap-2 border-b pb-1.5 text-sm font-semibold">
+                  {ACTIVITY_HEADINGS[group.recurrence]}
+                  <span className={`${PILL} ${group.overdue ? LEVEL_STYLES.high : group.items.length ? LEVEL_STYLES.medium : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"}`}>
+                    {group.items.length ? `${group.items.length} due${group.overdue ? ` · ${group.overdue} overdue` : ""}` : "Nothing due"}
+                  </span>
+                </h3>
+                {group.items.length === 0 ? (
+                  <Empty>Nothing due by {formatDate(group.dueBy)}.</Empty>
+                ) : (
+                  <ul className="divide-y">
+                    {group.items.map((item) => (
+                      <li key={item.key}>
+                        <Link to={to(item.link)} className="flex items-center justify-between gap-3 py-1.5 hover:bg-muted/40">
+                          <span className="min-w-0 text-sm">{item.title}</span>
+                          <span className={`${PILL} ${item.urgency === "overdue" ? LEVEL_STYLES.high : LEVEL_STYLES.medium}`}>
+                            {item.urgency === "overdue" ? "Overdue · " : ""}
+                            {formatDate(item.dueDate)}
+                          </span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            ))}
+          </div>
+        </Panel>
+      )}
 
       <Panel title="At a glance" icon={ShieldCheck}>
         <ul className="divide-y">

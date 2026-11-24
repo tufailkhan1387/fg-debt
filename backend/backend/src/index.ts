@@ -3,7 +3,7 @@ import { env } from "./config/env.js";
 import { migrate } from "./db/migrate.js";
 import { seed } from "./db/seed.js";
 import { pool } from "./db/pool.js";
-import { startReminderScheduler } from "./modules/reminders/reminders.service.js";
+import { remindersService, startReminderScheduler } from "./modules/reminders/reminders.service.js";
 import { startBackupScheduler } from "./modules/backups/backups.service.js";
 import { aiReviewService } from "./modules/ai-review/ai-review.service.js";
 
@@ -11,6 +11,7 @@ async function start() {
   try {
     await migrate();
     await seed();
+    await remindersService.addCalendarActivities();
     await aiReviewService.failInterrupted();
   } catch (error) {
     console.error("Unable to prepare the database. Is PostgreSQL running?");

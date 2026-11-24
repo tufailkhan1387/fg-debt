@@ -11,7 +11,9 @@ import { aiReviewService } from "../ai-review/ai-review.service.js";
 import { registersService } from "../registers/registers.service.js";
 import { trainingService } from "../training/training.service.js";
 import { backupsService } from "../backups/backups.service.js";
-import type { Dashboard, DashboardActivity, DashboardPolicy, SuggestedAction } from "./dashboard.types.js";
+import { activityWindowEnd } from "../reminders/reminders.helpers.js";
+import type { ReminderItem } from "../reminders/reminders.types.js";
+import type { Dashboard, DashboardActivity, DashboardActivityGroup, DashboardPolicy, SuggestedAction } from "./dashboard.types.js";
 
 export interface DashboardActor {
   userId: string;
@@ -59,6 +61,33 @@ function plural(count: number, one: string, many = `${one}s`) {
   return `${count} ${count === 1 ? one : many}`;
 }
 
+function formatUk(iso: string) {
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y}`;
+}
+
+const ACTIVITY_LABELS: Record<DashboardActivityGroup["recurrence"], string> = {
+  monthly: "monthly",
+  quarterly: "quarterly",
+  six_monthly: "six-monthly",
+  annual: "annual",
+};
+
+/**
+ * Recurring calendar tasks grouped by frequency: those overdue or due by the end of the current period.
+ * Monthly, quarterly and annual are always listed (as on the firm's activities calendar); six-monthly only when there are some.
+ */
+function calendarActivities(items: ReminderItem[]): DashboardActivityGroup[] {
+  const recurring = items.filter((i) => i.source === "task" && i.task && i.task.recurrence !== "none" && i.dueDate);
+  return (["monthly", "quarterly", "six_monthly", "annual"] as const)
+    .map((recurrence) => {
+      const dueBy = activityWindowEnd(recurrence);
+      const due = recurring.filter((i) => i.task!.recurrence === recurrence && i.dueDate! <= dueBy);
+      return { recurrence, dueBy, overdue: due.filter((i) => i.urgency === "overdue").length, items: due };
+    })
+    .filter((g) => g.recurrence !== "six_monthly" || g.items.length > 0);
+}
+
 /**
  * Rule-based next steps from the figures on the dashboard (not AI). They point to where each thing is dealt with.
  */
@@ -68,6 +97,20 @@ function suggestActions(d: Omit<Dashboard, "actions" | "generatedAt">): Suggeste
 
   if (d.deadlines.overdue > 0) {
     actions.push({ key: "overdue", tone: "danger", text: `Deal with ${plural(d.deadlines.overdue, "overdue item")} on the compliance calendar.`, link: CALENDAR_PATH });
+  }
+  for (const group of d.calendarActivities ?? []) {
+    if (group.items.length === 0) continue;
+    const label = ACTIVITY_LABELS[group.recurrence];
+    const latest = group.items.reduce((max, i) => (i.dueDate && i.dueDate > max ? i.dueDate : max), "");
+    actions.push({
+      key: `activities-${group.recurrence}`,
+      tone: group.overdue > 0 ? "danger" : "warning",
+      text:
+        group.overdue > 0
+          ? `${plural(group.items.length, `${label} activity`, `${label} activities`)} to complete, ${group.overdue} overdue.`
+          : `${plural(group.items.length, `${label} activity`, `${label} activities`)} due by ${formatUk(latest)}.`,
+      link: CALENDAR_PATH,
+    });
   }
   if (d.registers && d.registers.correctiveOverdue > 0) {
     actions.push({ key: "corrective-overdue", tone: "danger", text: `${plural(d.registers.correctiveOverdue, "corrective action")} past the due date.`, link: "/solicitor/fg-compliance/registers/corrective_actions" });
@@ -293,6 +336,7 @@ export const dashboardService = {
         approvals: feed.summary.approvals,
         items: deadlineItems.slice(0, DEADLINE_ITEMS),
       },
+      calendarActivities: hasAccess(actor.permissions, "reminders", "view") ? calendarActivities(feed.items) : null,
       risks,
       sqm,
       policies,
