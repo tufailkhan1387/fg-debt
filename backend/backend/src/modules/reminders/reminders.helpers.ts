@@ -88,6 +88,8 @@ interface SuggestionTemplate {
   recurrence: Exclude<Recurrence, "none">;
   /** 1–12, for annual activities. */
   month?: number;
+  /** Page where the activity is done; the dashboard links there instead of the calendar. */
+  link?: string;
 }
 
 export const SUGGESTED_ACTIVITIES: SuggestionTemplate[] = [
@@ -101,6 +103,9 @@ export const SUGGESTED_ACTIVITIES: SuggestionTemplate[] = [
   { title: "Review outstanding client matters and workload", area: "Files & deadlines", recurrence: "monthly" },
   { title: "Review high-risk items on the Risk Register", area: "Risk", recurrence: "monthly" },
   { title: "Verify backups", area: "IT & security", recurrence: "monthly" },
+  // Not on the sheet, but the firm does both at the end of every month.
+  { title: "Complete monthly file reviews", area: "Supervision & training", recurrence: "monthly", link: "/solicitor/fg-compliance/file-reviews" },
+  { title: "Complete monthly performance report", area: "Governance", recurrence: "monthly", link: "/solicitor/fg-compliance/registers/performance" },
 
   { title: "Review entire Risk Register, annual income & expenditure and variance analysis", area: "Risk", recurrence: "quarterly" },
   { title: "Review Compliance Incident Register", area: "Incidents", recurrence: "quarterly" },
@@ -130,6 +135,12 @@ export const SUGGESTED_ACTIVITIES: SuggestionTemplate[] = [
   { title: "Review engagement letters and client care documentation", area: "Policies", recurrence: "annual", month: 12 },
   { title: "Review website and regulatory information", area: "Governance", recurrence: "annual", month: 12 },
 ];
+
+/** Page for a calendar task that is one of the standard activities with its own page (e.g. file reviews). */
+export function activityLink(title: string): string | null {
+  const lower = title.toLowerCase();
+  return SUGGESTED_ACTIVITIES.find((t) => t.link && t.title.toLowerCase() === lower)?.link ?? null;
+}
 
 /** First due date: end of this month / this quarter, or the end of the given month (next year if already past). */
 export function firstDueDate(template: SuggestionTemplate, today = todayIso()): string {

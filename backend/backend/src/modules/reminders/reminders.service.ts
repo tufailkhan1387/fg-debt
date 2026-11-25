@@ -10,6 +10,7 @@ import { registersService } from "../registers/registers.service.js";
 import { trainingService } from "../training/training.service.js";
 import { businessService } from "../business/business.service.js";
 import {
+  activityLink,
   addDays,
   buildDigest,
   firstDueDate,
@@ -83,7 +84,7 @@ async function buildFeed(viewer: { userId: string; role: ComplianceRole; permiss
         owner: row.owner,
         dueDate: row.due_date,
         urgency: urgencyOf(row.due_date),
-        link: CALENDAR_PATH,
+        link: activityLink(row.title) ?? CALENDAR_PATH,
         task: toTask(row),
       });
     }
