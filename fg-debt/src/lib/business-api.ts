@@ -24,6 +24,8 @@ export interface Activity {
   owner: string;
   notes: string;
   lastCompleted: string | null;
+  /** The latest task of the same name marked Done on the Compliance Calendar. */
+  calendarDone: { date: string; by: string | null } | null;
   records: BusinessRecord[];
 }
 

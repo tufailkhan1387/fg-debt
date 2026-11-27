@@ -209,6 +209,12 @@ function ActivityCard({ activity: a, canEdit, isPrincipal }: { activity: Activit
             {a.overdue && " · Overdue"}
           </span>
         </div>
+        {a.calendarDone && (
+          <p className="text-xs text-muted-foreground">
+            Marked done on the Compliance Calendar {formatDate(a.calendarDone.date)}
+            {a.calendarDone.by && ` · by ${a.calendarDone.by}`}
+          </p>
+        )}
         {ACTIVITY_HINTS[a.key] && <p className="text-xs text-muted-foreground">{ACTIVITY_HINTS[a.key]}</p>}
         {a.notes && <p className="whitespace-pre-wrap text-xs">{a.notes}</p>}
         {a.records.length > 0 && (

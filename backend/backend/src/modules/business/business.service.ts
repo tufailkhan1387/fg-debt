@@ -119,17 +119,32 @@ function toRecord(row: RecordRow) {
 
 export type BusinessRecord = ReturnType<typeof toRecord>;
 
-function toActivity(row: ActivityRow, records: RecordRow[], today: string) {
+interface CalendarDoneRow {
+  title: string;
+  done_date: string;
+  completed_by: string | null;
+}
+
+/** "Six Monthly Business Plan Review" and "Six-monthly Business Plan review" are the same activity. */
+const sameName = (title: string) => title.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+function toActivity(row: ActivityRow, records: RecordRow[], calendarDone: CalendarDoneRow[], today: string) {
   const mine = records.filter((r) => r.activity_key === row.key);
+  const recorded = mine[0]?.completed_date ?? null;
+  // A task of the same name marked Done on the Compliance Calendar counts as done too.
+  const calendar = calendarDone.find((t) => sameName(t.title) === sameName(row.title)) ?? null;
+  const calendarIsLatest = !!calendar && (!recorded || calendar.done_date > recorded);
+  const nextDue = calendarIsLatest && row.every_months ? addMonths(calendar.done_date, row.every_months) : row.next_due;
   return {
     key: row.key,
     title: row.title,
     everyMonths: row.every_months,
-    nextDue: row.next_due,
-    overdue: !!row.next_due && row.next_due < today,
+    nextDue,
+    overdue: !!nextDue && nextDue < today,
     owner: row.owner,
     notes: row.notes,
-    lastCompleted: mine[0]?.completed_date ?? null,
+    lastCompleted: calendarIsLatest ? calendar.done_date : recorded,
+    calendarDone: calendar ? { date: calendar.done_date, by: calendar.completed_by } : null,
     records: mine.map(toRecord),
   };
 }
@@ -253,10 +268,14 @@ function uniqueName(error: unknown): never {
 export const businessService = {
   async overview() {
     const today = todayIso();
-    const [activities, records, budgets] = await Promise.all([
+    const [activities, records, budgets, calendarDone] = await Promise.all([
       query<ActivityRow>(`SELECT ${ACTIVITY_COLUMNS} FROM compliance_business_activities ORDER BY sort_order`).then((r) => r.rows),
       query<RecordRow>(`SELECT ${RECORD_COLUMNS} FROM compliance_business_records ORDER BY completed_date DESC, created_at DESC`).then((r) => r.rows),
       query<BudgetRow>(`SELECT ${BUDGET_COLUMNS} FROM compliance_budgets ORDER BY start_date DESC`).then((r) => r.rows),
+      query<CalendarDoneRow>(
+        `SELECT title, (completed_at AT TIME ZONE 'Europe/London')::date::text AS done_date, completed_by
+         FROM compliance_tasks WHERE status = 'completed' AND completed_at IS NOT NULL ORDER BY completed_at DESC`,
+      ).then((r) => r.rows),
     ]);
     const budgetSummaries = await Promise.all(
       budgets.map(async (b) => {
@@ -274,7 +293,7 @@ export const businessService = {
         };
       }),
     );
-    return { activities: activities.map((a) => toActivity(a, records, today)), budgets: budgetSummaries };
+    return { activities: activities.map((a) => toActivity(a, records, calendarDone, today)), budgets: budgetSummaries };
   },
 
   async updateActivity(key: string, input: { everyMonths?: number | null; nextDue?: string | null; owner?: string; notes?: string }, actor: RegisterActor) {
